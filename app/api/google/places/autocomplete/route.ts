@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
-
-type Body = {
-  input?: string
-  language?: string
-  region?: string
-}
+import { canMutateOrgData } from '@/lib/rbac/server'
+import { placesAutocompleteBody } from '@/lib/validation/api'
+import { zodErrorMessage } from '@/lib/validation/parse'
 
 type GooglePlacesAutocompleteResponse = {
   status: string
@@ -23,10 +20,27 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  let raw: unknown
+  try {
+    raw = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  const parsed = placesAutocompleteBody.safeParse(raw)
+  if (!parsed.success) {
+    return NextResponse.json({ error: zodErrorMessage(parsed.error) }, { status: 400 })
+  }
+
+  const body = parsed.data
+
+  if (!(await canMutateOrgData(supabase, body.orgId, user.id))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'Missing GOOGLE_MAPS_API_KEY' }, { status: 500 })
 
-  const body = (await request.json()) as Body
   const input = (body.input ?? '').trim()
   if (input.length < 3) return NextResponse.json({ predictions: [] })
 
@@ -53,4 +67,3 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ predictions })
 }
-

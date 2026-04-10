@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+const MAX_NAME = 200;
+
 export function CreateOrgForm() {
   const [name, setName] = useState("");
   const [status, setStatus] = useState<string | null>(null);
@@ -9,7 +11,14 @@ export function CreateOrgForm() {
   async function onCreate() {
     setStatus(null);
     const trimmed = name.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      setStatus("Enter an organization name.");
+      return;
+    }
+    if (trimmed.length > MAX_NAME) {
+      setStatus(`Name must be at most ${MAX_NAME} characters.`);
+      return;
+    }
 
     const res = await fetch("/api/orgs/create", {
       method: "POST",
@@ -27,11 +36,12 @@ export function CreateOrgForm() {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="New org name"
+        maxLength={MAX_NAME}
         className="h-10 w-48 rounded-md border border-black/10 bg-white px-3 text-sm dark:border-white/15 dark:bg-black"
       />
       <button
@@ -45,4 +55,3 @@ export function CreateOrgForm() {
     </div>
   );
 }
-

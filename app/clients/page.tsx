@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
+import { canMutateOrgData } from '@/lib/rbac/server'
 
 function clampInt(v: string | null, def: number, min: number, max: number) {
   const n = Number(v ?? '')
@@ -36,6 +37,8 @@ export default async function ClientsPage(props: {
 
   if (!membership) redirect('/org')
 
+  const canManage = await canMutateOrgData(supabase, orgId, user.id)
+
   let q = supabase.from('clients').select('id,display_name,client_slug,created_at,primary_domain', { count: 'exact' }).eq('org_id', orgId)
 
   if (sort === 'name') {
@@ -63,12 +66,14 @@ export default async function ClientsPage(props: {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/clients/new?org_id=${encodeURIComponent(orgId)}`}
-            className="rounded-md bg-black px-3 py-2 text-sm font-medium text-white transition-all duration-150 ease-out hover:shadow-sm hover:-translate-y-px active:translate-y-0 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30 dark:bg-white dark:text-black dark:focus-visible:ring-white/30"
-          >
-            Onboard client
-          </Link>
+          {canManage ? (
+            <Link
+              href={`/clients/new?org_id=${encodeURIComponent(orgId)}`}
+              className="rounded-md bg-black px-3 py-2 text-sm font-medium text-white transition-all duration-150 ease-out hover:shadow-sm hover:-translate-y-px active:translate-y-0 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30 dark:bg-white dark:text-black dark:focus-visible:ring-white/30"
+            >
+              Onboard client
+            </Link>
+          ) : null}
           <Link
             href={`/clients?org_id=${encodeURIComponent(orgId)}&sort=${encodeURIComponent(sort === 'name' ? 'new' : 'name')}&page=1&pageSize=${pageSize}`}
             className="rounded-md border border-black/10 px-3 py-2 text-sm transition-all duration-150 ease-out hover:bg-black/[.04] hover:shadow-sm hover:-translate-y-px active:translate-y-0 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20 dark:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-white/20"
@@ -122,4 +127,3 @@ export default async function ClientsPage(props: {
     </div>
   )
 }
-

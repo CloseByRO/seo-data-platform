@@ -120,7 +120,7 @@ export function OnboardClientForm({ orgId }: Props) {
         const res = await fetch("/api/google/places/autocomplete", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ input: q, language: "ro", region: "ro" }),
+          body: JSON.stringify({ orgId, input: q, language: "ro", region: "ro" }),
         });
         const json = (await res.json()) as {
           predictions?: Array<{ description: string; placeId: string }>;
@@ -146,7 +146,7 @@ export function OnboardClientForm({ orgId }: Props) {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [addrQuery]);
+  }, [addrQuery, orgId]);
 
   async function selectPrediction(placeId: string, description: string) {
     setAddrOpen(false);
@@ -158,7 +158,7 @@ export function OnboardClientForm({ orgId }: Props) {
       const res = await fetch("/api/google/places/details", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ placeId, language: "ro" }),
+        body: JSON.stringify({ orgId, placeId, language: "ro" }),
       });
       const json = (await res.json()) as {
         formattedAddress?: string | null;
@@ -205,7 +205,7 @@ export function OnboardClientForm({ orgId }: Props) {
       const res = await fetch("/api/onboarding/geocode-suggestions", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ address: addr, displayName: displayName.trim() }),
+        body: JSON.stringify({ orgId, address: addr, displayName: displayName.trim() }),
       });
       const json = (await res.json()) as {
         lat?: number;

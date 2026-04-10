@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { canMutateOrgData } from '@/lib/rbac/server'
+import { geocodeSuggestionsBody } from '@/lib/validation/api'
+import { zodErrorMessage } from '@/lib/validation/parse'
 
 type NominatimItem = {
   lat: string
@@ -24,7 +27,6 @@ function cityFromAddress(a: NominatimItem['address']): string | null {
   )
 }
 
-/** At least 5 local-SEO style keyword ideas from business name + geocoded place. */
 function buildKeywordSuggestions(displayName: string, city: string | null, region: string | null): string[] {
   const name = displayName.trim()
   const fallbackName = name || 'business'
@@ -76,17 +78,32 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = (await request.json()) as { address?: string; displayName?: string }
-  const address = (body.address ?? '').trim()
+  let raw: unknown
+  try {
+    raw = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  const parsed = geocodeSuggestionsBody.safeParse(raw)
+  if (!parsed.success) {
+    return NextResponse.json({ error: zodErrorMessage(parsed.error) }, { status: 400 })
+  }
+
+  const body = parsed.data
+
+  if (!(await canMutateOrgData(supabase, body.orgId, user.id))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const address = body.address.trim()
   const displayName = (body.displayName ?? '').trim()
-  if (!address) return NextResponse.json({ error: 'Missing address' }, { status: 400 })
 
   const q = encodeURIComponent(address)
   const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&addressdetails=1`
 
   const res = await fetch(url, {
     headers: {
-      // Nominatim requires a valid User-Agent identifying the app
       'User-Agent': 'seo-data-platform/1.0 (local-seo onboarding; contact: app)',
       Accept: 'application/json',
     },

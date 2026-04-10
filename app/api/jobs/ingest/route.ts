@@ -1,18 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { canMutateOrgData } from '@/lib/rbac/server'
 import { lastNDaysRange } from '@/lib/jobs/date-range'
 import { startJobRun, finishJobRun } from '@/lib/jobs/job-runs'
 import { ingestGscDaily } from '@/lib/jobs/ingest-gsc'
 import { ingestGbpDaily } from '@/lib/jobs/ingest-gbp'
 import { ingestSerpGrid } from '@/lib/jobs/ingest-serp-grid'
-
-type Body = {
-  orgId: string
-  clientId: string
-  locationId: string
-  startDate?: string
-  endDate?: string
-}
+import { ingestJobBody } from '@/lib/validation/api'
+import { zodErrorMessage } from '@/lib/validation/parse'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -22,23 +17,26 @@ export async function POST(request: Request) {
 
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = (await request.json()) as Body
-  if (!body.orgId || !body.clientId || !body.locationId) {
-    return NextResponse.json({ error: 'Missing orgId/clientId/locationId' }, { status: 400 })
+  let raw: unknown
+  try {
+    raw = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const { data: membership } = await supabase
-    .from('org_memberships')
-    .select('role')
-    .eq('org_id', body.orgId)
-    .eq('user_id', user.id)
-    .maybeSingle()
+  const parsed = ingestJobBody.safeParse(raw)
+  if (!parsed.success) {
+    return NextResponse.json({ error: zodErrorMessage(parsed.error) }, { status: 400 })
+  }
 
-  if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
+  const body = parsed.data
+
+  if (!(await canMutateOrgData(supabase, body.orgId, user.id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const range = body.startDate && body.endDate ? { startDate: body.startDate, endDate: body.endDate } : lastNDaysRange(3)
+  const range =
+    body.startDate && body.endDate ? { startDate: body.startDate, endDate: body.endDate } : lastNDaysRange(3)
 
   const results: Record<string, { ok: boolean; skipped?: boolean; error?: string }> = {}
 
@@ -49,7 +47,6 @@ export async function POST(request: Request) {
     )
   }
 
-  // GSC
   {
     const jobRunId = await startJobRun({
       orgId: body.orgId,
@@ -72,7 +69,6 @@ export async function POST(request: Request) {
     }
   }
 
-  // GBP
   {
     const jobRunId = await startJobRun({
       orgId: body.orgId,
@@ -95,7 +91,6 @@ export async function POST(request: Request) {
     }
   }
 
-  // SERP grid
   {
     const jobRunId = await startJobRun({
       orgId: body.orgId,
@@ -121,4 +116,3 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ok: true, range, results })
 }
-

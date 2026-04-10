@@ -1,31 +1,10 @@
-import crypto from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-
-function normalizeText(s: string) {
-  return s.toLowerCase().trim().replace(/\s+/g, ' ')
-}
-
-function addressHash(addressText: string) {
-  const norm = normalizeText(addressText).replace(/[^\p{L}\p{N}\s]/gu, '')
-  return crypto.createHash('sha256').update(norm, 'utf8').digest('hex')
-}
-
-type Body = {
-  orgId: string
-  clientSlug: string
-  displayName: string
-  primaryDomain?: string
-  location: {
-    addressText: string
-    lat: number | null
-    lng: number | null
-    placeId: string | null
-    gbpLocationId: string | null
-  }
-  keywords: string[]
-}
+import { canMutateOrgData } from '@/lib/rbac/server'
+import { addressHash, normalizeClientSlug, normalizeText } from '@/lib/clients/text'
+import { onboardingCreateClientBody } from '@/lib/validation/api'
+import { zodErrorMessage } from '@/lib/validation/parse'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -35,28 +14,32 @@ export async function POST(request: Request) {
 
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = (await request.json()) as Body
-  if (!body.orgId) return NextResponse.json({ error: 'Missing orgId' }, { status: 400 })
+  let raw: unknown
+  try {
+    raw = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
 
-  const { data: membership } = await supabase
-    .from('org_memberships')
-    .select('role')
-    .eq('org_id', body.orgId)
-    .eq('user_id', user.id)
-    .maybeSingle()
+  const parsed = onboardingCreateClientBody.safeParse(raw)
+  if (!parsed.success) {
+    return NextResponse.json({ error: zodErrorMessage(parsed.error) }, { status: 400 })
+  }
 
-  if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
+  const body = parsed.data
+
+  if (!(await canMutateOrgData(supabase, body.orgId, user.id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const clientSlug = normalizeText(body.clientSlug).replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-')
-  const displayName = (body.displayName ?? '').trim()
+  const clientSlug = normalizeClientSlug(body.clientSlug)
+  const displayName = body.displayName.trim()
   if (!clientSlug || !displayName) return NextResponse.json({ error: 'Missing client fields' }, { status: 400 })
 
-  const locAddress = (body.location?.addressText ?? '').trim()
+  const locAddress = body.location.addressText.trim()
   if (!locAddress) return NextResponse.json({ error: 'Missing address' }, { status: 400 })
 
-  const kws = (body.keywords ?? []).map((k) => k.trim()).filter(Boolean)
+  const kws = body.keywords.map((k) => k.trim()).filter(Boolean)
   if (kws.length === 0) return NextResponse.json({ error: 'Provide at least 1 keyword' }, { status: 400 })
 
   const admin = createAdminClient()
@@ -94,7 +77,7 @@ export async function POST(request: Request) {
   const keywordRows = kws.map((kw) => ({
     org_id: body.orgId,
     client_id: client.id,
-    locale: 'ro-RO',
+    locale: 'ro-RO' as const,
     keyword_raw: kw,
     keyword_norm: normalizeText(kw),
   }))
@@ -107,4 +90,3 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ok: true, clientId: client.id, locationId: location.id })
 }
-

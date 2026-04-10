@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
-
-type Body = {
-  placeId?: string
-  language?: string
-}
+import { canMutateOrgData } from '@/lib/rbac/server'
+import { placesDetailsBody } from '@/lib/validation/api'
+import { zodErrorMessage } from '@/lib/validation/parse'
 
 type GooglePlacesDetailsResponse = {
   status: string
@@ -30,15 +28,29 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  let raw: unknown
+  try {
+    raw = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  const parsed = placesDetailsBody.safeParse(raw)
+  if (!parsed.success) {
+    return NextResponse.json({ error: zodErrorMessage(parsed.error) }, { status: 400 })
+  }
+
+  const body = parsed.data
+
+  if (!(await canMutateOrgData(supabase, body.orgId, user.id))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'Missing GOOGLE_MAPS_API_KEY' }, { status: 500 })
 
-  const body = (await request.json()) as Body
-  const placeId = (body.placeId ?? '').trim()
-  if (!placeId) return NextResponse.json({ error: 'Missing placeId' }, { status: 400 })
-
   const params = new URLSearchParams({
-    place_id: placeId,
+    place_id: body.placeId,
     key: apiKey,
     language: body.language ?? 'ro',
     fields: 'formatted_address,geometry,address_component',
@@ -71,7 +83,7 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({
-    placeId,
+    placeId: body.placeId,
     formattedAddress,
     lat,
     lng,
@@ -79,4 +91,3 @@ export async function POST(request: Request) {
     region,
   })
 }
-

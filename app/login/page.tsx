@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { LoginForm } from '@/components/auth/login-form'
 
 export default function LoginPage() {
@@ -9,7 +10,9 @@ export default function LoginPage() {
           Sign in to access org dashboards and run ingestion jobs.
         </p>
         <div className="mt-6">
-          <LoginForm />
+          <Suspense fallback={<p className="text-sm text-black/60 dark:text-white/60">Loading…</p>}>
+            <LoginForm />
+          </Suspense>
         </div>
       </div>
     </div>

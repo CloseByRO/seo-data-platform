@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { encryptToken } from '@/lib/crypto/token-encryption'
+import { canMutateOrgData } from '@/lib/rbac/server'
 
 type GoogleTokenResponse = {
   access_token: string
@@ -49,14 +50,7 @@ export async function GET(request: Request) {
 
   if (userErr || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: membership } = await supabase
-    .from('org_memberships')
-    .select('role')
-    .eq('org_id', orgId)
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
+  if (!orgId || !(await canMutateOrgData(supabase, orgId, user.id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -90,7 +84,6 @@ export async function GET(request: Request) {
 
   const userInfo = (await userInfoRes.json()) as GoogleUserInfo
 
-  // Persist refresh token if provided (Google may omit it on repeated connects)
   const admin = createAdminClient()
   const encryptedRefresh = tokens.refresh_token ? encryptToken(tokens.refresh_token) : null
   const scopes = (tokens.scope ?? '').split(' ').filter(Boolean)
@@ -126,7 +119,5 @@ export async function GET(request: Request) {
     if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
   }
 
-  // Redirect back to org page (UI will be built in dashboard step)
   return NextResponse.redirect(new URL(`/org?org_id=${encodeURIComponent(orgId)}`, url.origin))
 }
-

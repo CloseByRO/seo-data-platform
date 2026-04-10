@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
+import { canMutateOrgData } from '@/lib/rbac/server'
 import { OnboardClientForm } from '@/components/onboarding/onboard-client-form'
 
 export default async function NewClientPage(props: { searchParams: Promise<{ org_id?: string }> }) {
@@ -14,14 +15,9 @@ export default async function NewClientPage(props: { searchParams: Promise<{ org
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: membership } = await supabase
-    .from('org_memberships')
-    .select('role')
-    .eq('org_id', orgId)
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) redirect('/org')
+  if (!(await canMutateOrgData(supabase, orgId, user.id))) {
+    redirect(`/org?org_id=${encodeURIComponent(orgId)}`)
+  }
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-10">
@@ -46,4 +42,3 @@ export default async function NewClientPage(props: { searchParams: Promise<{ org
     </div>
   )
 }
-

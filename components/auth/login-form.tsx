@@ -1,9 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
+function safeNextPath(raw: string | null): string | null {
+  if (!raw || !raw.startsWith("/")) return null;
+  if (raw.startsWith("//")) return null;
+  return raw;
+}
+
 export function LoginForm() {
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -28,7 +36,8 @@ export function LoginForm() {
       return;
     }
 
-    window.location.href = "/org";
+    const next = safeNextPath(searchParams.get("next"));
+    window.location.href = next ?? "/org";
   }
 
   return (

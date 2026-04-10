@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
+import { canMutateOrgData } from '@/lib/rbac/server'
 import { RunIngestButton } from '@/components/dashboard/run-ingest-button'
 import { KeywordSelect } from '@/components/dashboard/keyword-select'
 
@@ -29,6 +30,8 @@ export default async function DashboardPage(props: {
     .eq('id', clientId)
     .maybeSingle()
   if (!client) redirect('/org')
+
+  const canRunIngest = await canMutateOrgData(supabase, client.org_id, user.id)
 
   const { data: location } = await supabase
     .from('locations')
@@ -124,7 +127,12 @@ export default async function DashboardPage(props: {
           <h1 className="mt-2 text-2xl font-semibold">{client.display_name}</h1>
           <p className="mt-1 text-sm text-black/60 dark:text-white/60">{location.address_text}</p>
           <div className="mt-4">
-            <RunIngestButton orgId={client.org_id} clientId={client.id} locationId={location.id} />
+            <RunIngestButton
+              orgId={client.org_id}
+              clientId={client.id}
+              locationId={location.id}
+              canRun={canRunIngest}
+            />
           </div>
         </div>
 

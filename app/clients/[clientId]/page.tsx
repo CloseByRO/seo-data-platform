@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
+import { canMutateOrgData } from '@/lib/rbac/server'
+import { ClientDetailPanel } from '@/components/clients/client-detail-panel'
 
 function websiteUrl(primaryDomain: string | null) {
   if (!primaryDomain) return null
@@ -44,6 +46,8 @@ export default async function ClientDetailPage(props: {
     .maybeSingle()
   if (!membership) redirect('/org')
 
+  const canEdit = await canMutateOrgData(supabase, orgId, user.id)
+
   const { data: client } = await supabase
     .from('clients')
     .select('id,org_id,display_name,client_slug,primary_domain,created_at')
@@ -68,8 +72,12 @@ export default async function ClientDetailPage(props: {
 
   const primaryLocation = locations?.[0] ?? null
   const website = websiteUrl(client.primary_domain ?? null)
-  const maps = mapsUrlFromPlaceId(primaryLocation?.place_id ?? null) ?? mapsUrlFromLatLng(primaryLocation?.lat ?? null, primaryLocation?.lng ?? null)
-  const gbp = primaryLocation?.gbp_location_id ? `https://business.google.com/locations/l/${encodeURIComponent(primaryLocation.gbp_location_id)}` : null
+  const maps =
+    mapsUrlFromPlaceId(primaryLocation?.place_id ?? null) ??
+    mapsUrlFromLatLng(primaryLocation?.lat ?? null, primaryLocation?.lng ?? null)
+  const gbp = primaryLocation?.gbp_location_id
+    ? `https://business.google.com/locations/l/${encodeURIComponent(primaryLocation.gbp_location_id)}`
+    : null
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10">
@@ -125,70 +133,15 @@ export default async function ClientDetailPage(props: {
         </div>
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <section className="rounded-2xl border border-black/10 p-6 dark:border-white/15">
-          <h2 className="text-lg font-semibold">Client data</h2>
-          <div className="mt-3 space-y-2 text-sm text-black/70 dark:text-white/70">
-            <div>
-              <span className="text-black/50 dark:text-white/50">Slug:</span> {client.client_slug}
-            </div>
-            <div>
-              <span className="text-black/50 dark:text-white/50">Created:</span>{' '}
-              {client.created_at ? new Date(client.created_at).toLocaleString() : '—'}
-            </div>
-          </div>
-
-          <div className="mt-4 text-xs text-black/50 dark:text-white/50">
-            Edit/update/delete UI will live here next (API endpoints will be added in the next step).
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-black/10 p-6 dark:border-white/15">
-          <h2 className="text-lg font-semibold">Keywords</h2>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {(keywords ?? []).slice(0, 50).map((k) => (
-              <span
-                key={k.id}
-                className="inline-flex items-center rounded-full border border-black/15 bg-black/[.04] px-3 py-1 text-xs font-medium dark:border-white/20 dark:bg-white/10"
-              >
-                {k.keyword_raw}
-              </span>
-            ))}
-          </div>
-          {(keywords ?? []).length > 50 ? (
-            <div className="mt-3 text-xs text-black/50 dark:text-white/50">Showing first 50.</div>
-          ) : null}
-        </section>
+      <div className="mt-8">
+        <ClientDetailPanel
+          orgId={orgId}
+          client={client}
+          locations={locations ?? []}
+          keywords={keywords ?? []}
+          canEdit={canEdit}
+        />
       </div>
-
-      <section className="mt-6 rounded-2xl border border-black/10 p-6 dark:border-white/15">
-        <h2 className="text-lg font-semibold">Locations</h2>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="text-black/60 dark:text-white/60">
-              <tr>
-                <th className="py-2 pr-4">Address</th>
-                <th className="py-2 pr-4">Lat/Lng</th>
-                <th className="py-2 pr-4">Place ID</th>
-                <th className="py-2 pr-4">GBP</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(locations ?? []).map((l) => (
-                <tr key={l.id} className="border-t border-black/5 dark:border-white/10">
-                  <td className="py-2 pr-4">{l.address_text}</td>
-                  <td className="py-2 pr-4">
-                    {l.lat ?? '—'},{' '}{l.lng ?? '—'}
-                  </td>
-                  <td className="py-2 pr-4">{l.place_id ?? '—'}</td>
-                  <td className="py-2 pr-4">{l.gbp_location_id ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </div>
   )
 }
-

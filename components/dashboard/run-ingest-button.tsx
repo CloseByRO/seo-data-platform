@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 
-export function RunIngestButton(props: { orgId: string; clientId: string; locationId: string }) {
+export function RunIngestButton(props: {
+  orgId: string;
+  clientId: string;
+  locationId: string;
+  canRun: boolean;
+}) {
   const [status, setStatus] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
 
@@ -36,6 +41,14 @@ export function RunIngestButton(props: { orgId: string; clientId: string; locati
     } finally {
       setRunning(false);
     }
+  }
+
+  if (!props.canRun) {
+    return (
+      <p className="text-sm text-black/60 dark:text-white/60">
+        Ingest is available to CloseBy platform admins only.
+      </p>
+    );
   }
 
   return (
