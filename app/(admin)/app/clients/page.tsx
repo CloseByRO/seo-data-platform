@@ -58,6 +58,48 @@ export default async function AdminClientsPage(props: {
   const total = count ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
+  const clientIds = (clients ?? []).map((c) => c.id)
+  const primaryGbpByClient = new Map<string, string | null>()
+  if (clientIds.length > 0) {
+    const { data: locRows } = await supabase
+      .from('locations')
+      .select('client_id,gbp_location_id,created_at')
+      .eq('org_id', operatorOrgId)
+      .in('client_id', clientIds)
+      .order('created_at', { ascending: true })
+    for (const row of locRows ?? []) {
+      if (!primaryGbpByClient.has(row.client_id)) {
+        primaryGbpByClient.set(row.client_id, row.gbp_location_id)
+      }
+    }
+  }
+
+  const lastSerpByClient = new Map<string, string>()
+  if (clientIds.length > 0) {
+    const { data: serpJobs } = await supabase
+      .from('job_runs')
+      .select('params,finished_at,status')
+      .eq('org_id', operatorOrgId)
+      .eq('job_name', 'ingest_serp_grid')
+      .eq('status', 'success')
+      .order('finished_at', { ascending: false, nullsFirst: false })
+      .limit(1000)
+    const seen = new Set<string>()
+    for (const j of serpJobs ?? []) {
+      if (!j.finished_at) continue
+      const cid = (j.params as { clientId?: string })?.clientId
+      if (!cid || seen.has(cid)) continue
+      seen.add(cid)
+      lastSerpByClient.set(cid, j.finished_at)
+    }
+  }
+
+  const clientsForView = (clients ?? []).map((c) => ({
+    ...c,
+    gbp_location_id: primaryGbpByClient.get(c.id) ?? null,
+    last_serp_sync_at: lastSerpByClient.get(c.id) ?? null,
+  }))
+
   let detail: {
     client: {
       id: string
@@ -141,7 +183,7 @@ export default async function AdminClientsPage(props: {
   return (
     <AdminClientsView
       orgId={operatorOrgId}
-      clients={clients ?? []}
+      clients={clientsForView}
       page={page}
       totalPages={totalPages}
       sort={sort}

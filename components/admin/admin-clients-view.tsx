@@ -5,7 +5,33 @@ import { useRouter } from "next/navigation";
 import { X, ExternalLink, LineChart } from "lucide-react";
 import { ClientDetailPanel } from "@/components/clients/client-detail-panel";
 
-type ClientRow = {
+function websiteHref(primaryDomain: string | null): string | null {
+  if (!primaryDomain?.trim()) return null;
+  const d = primaryDomain.trim();
+  if (d.startsWith("http://") || d.startsWith("https://")) return d;
+  return `https://${d}`;
+}
+
+function gbpMapsHref(gbpLocationId: string | null): string | null {
+  if (!gbpLocationId?.trim()) return null;
+  return `https://business.google.com/locations/l/${encodeURIComponent(gbpLocationId)}`;
+}
+
+type ClientListRow = {
+  id: string;
+  display_name: string;
+  client_slug: string;
+  primary_domain: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Primary location GBP id if any */
+  gbp_location_id: string | null;
+  /** Last successful ingest_serp_grid finished_at (ISO) */
+  last_serp_sync_at: string | null;
+};
+
+/** Slide-over panel client row (no list-only enrichment fields). */
+type PanelClientRow = {
   id: string;
   display_name: string;
   client_slug: string;
@@ -27,13 +53,13 @@ type KeywordRow = { id: string; keyword_raw: string };
 
 type Props = {
   orgId: string;
-  clients: ClientRow[];
+  clients: ClientListRow[];
   page: number;
   totalPages: number;
   sort: string;
   selectedId: string | null;
   detail: {
-    client: ClientRow;
+    client: PanelClientRow;
     locations: LocationRow[];
     keywords: KeywordRow[];
     canEdit: boolean;
@@ -77,19 +103,24 @@ export function AdminClientsView(props: Props) {
           <thead className="border-b border-slate-800 bg-slate-900/80 text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Slug / domain</th>
+              <th className="px-4 py-3 font-medium">Website</th>
+              <th className="px-4 py-3 font-medium">GBP</th>
+              <th className="px-4 py-3 font-medium">Last SERP sync</th>
               <th className="px-4 py-3 font-medium">Updated</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800">
             {props.clients.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
                   No clients for this organization yet. Use onboarding to create one.
                 </td>
               </tr>
             ) : (
-              props.clients.map((c) => (
+              props.clients.map((c) => {
+                const web = websiteHref(c.primary_domain);
+                const gbp = gbpMapsHref(c.gbp_location_id);
+                return (
                 <tr key={c.id} className="hover:bg-slate-900/40">
                   <td className="px-4 py-3">
                     <Link
@@ -99,14 +130,50 @@ export function AdminClientsView(props: Props) {
                       {c.display_name}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-slate-400">
-                    {c.primary_domain ?? c.client_slug}
+                  <td className="max-w-[160px] truncate px-4 py-3 text-slate-400">
+                    {web ? (
+                      <a
+                        href={web}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-emerald-400/90 hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {c.primary_domain?.replace(/^https?:\/\//, "") ?? "—"}
+                      </a>
+                    ) : (
+                      <span className="text-slate-600">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {gbp ? (
+                      <a
+                        href={gbp}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm text-emerald-400/90 hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Open
+                      </a>
+                    ) : (
+                      <span className="text-slate-600">—</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-400">
+                    {c.last_serp_sync_at
+                      ? new Date(c.last_serp_sync_at).toLocaleString(undefined, {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })
+                      : "—"}
                   </td>
                   <td className="px-4 py-3 text-slate-500">
                     {c.updated_at ? new Date(c.updated_at).toLocaleString() : "—"}
                   </td>
                 </tr>
-              ))
+              );
+              })
             )}
           </tbody>
         </table>
@@ -200,7 +267,7 @@ export function AdminClientsView(props: Props) {
                 ) : null}
               </div>
 
-              <div className="rounded-xl border border-slate-800 bg-slate-900/30 p-4 [&_section]:border-slate-800 [&_section]:bg-slate-950/50 [&_label]:text-slate-300 [&_input]:border-slate-700 [&_input]:bg-slate-900 [&_h2]:text-white">
+              <div className="rounded-xl border border-slate-800 bg-slate-900/30 p-4">
                 <ClientDetailPanel
                   orgId={props.orgId}
                   client={props.detail.client}
@@ -209,6 +276,7 @@ export function AdminClientsView(props: Props) {
                   canEdit={props.detail.canEdit}
                   canDelete={props.detail.canDelete}
                   afterDeleteHref="/app/clients"
+                  variant="dark"
                 />
               </div>
             </div>

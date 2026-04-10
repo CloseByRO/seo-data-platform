@@ -49,6 +49,8 @@ type Props = {
   canDelete: boolean;
   /** When set, redirect here after successful delete instead of legacy /clients. */
   afterDeleteHref?: string;
+  /** Use slate text that reads on dark admin chrome (avoids relying on `dark:` on &lt;html&gt;). */
+  variant?: "default" | "dark";
 };
 
 function cleanCoord(v: number | null): number | null {
@@ -59,6 +61,24 @@ function cleanCoord(v: number | null): number | null {
 export function ClientDetailPanel(props: Props) {
   const router = useRouter();
   const { orgId, client, canEdit, canDelete, afterDeleteHref } = props;
+  const dark = props.variant === "dark";
+  const t = {
+    muted: dark ? "text-slate-400" : "text-black/60 dark:text-white/60",
+    mutedHi: dark ? "text-slate-300" : "text-black/70 dark:text-white/70",
+    faint: dark ? "text-slate-500" : "text-black/50 dark:text-white/50",
+    heading: dark ? "text-white" : "text-neutral-900 dark:text-white",
+    border: dark ? "border-slate-700" : "border-black/10 dark:border-white/15",
+    section: dark ? "border-slate-700 bg-slate-950/40" : "border-black/10 dark:border-white/15",
+    input: dark
+      ? "border-slate-600 bg-slate-900 text-slate-100 placeholder:text-slate-500"
+      : "border-black/10 bg-white dark:border-white/15 dark:bg-black",
+    btnGhost: dark ? "border-slate-600 text-slate-200 hover:bg-slate-800" : "border-black/10 hover:bg-black/[.04] dark:border-white/15 dark:hover:bg-white/10",
+    locTitle: dark ? "font-medium text-slate-200" : "font-medium text-black/80 dark:text-white/80",
+    chip: dark
+      ? "border-slate-600 bg-slate-800/80 text-slate-200"
+      : "border-black/15 bg-black/[.04] dark:border-white/20 dark:bg-white/10",
+  };
+  const lbl = dark ? "text-sm font-medium text-slate-300" : "text-sm font-medium";
 
   const [displayName, setDisplayName] = useState(client.display_name);
   const [clientSlug, setClientSlug] = useState(client.client_slug);
@@ -205,37 +225,35 @@ export function ClientDetailPanel(props: Props) {
   if (!canEdit) {
     return (
       <div className="space-y-8">
-        <p className="text-sm text-black/70 dark:text-white/70">
+        <p className={`text-sm ${t.mutedHi}`}>
           You can view this client. Editing (name, address, keywords) is available to org owners, admins, and members.
           Viewers are read-only here.
         </p>
-        <section className="rounded-2xl border border-black/10 p-6 dark:border-white/15">
-          <h2 className="text-lg font-semibold">Client</h2>
-          <dl className="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+        <section className={`rounded-2xl border p-6 ${t.section}`}>
+          <h2 className={`text-lg font-semibold ${t.heading}`}>Client</h2>
+          <dl className={`mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-2 ${dark ? "text-slate-200" : ""}`}>
             <div>
-              <dt className="text-xs text-black/50 dark:text-white/50">Display name</dt>
+              <dt className={`text-xs ${t.faint}`}>Display name</dt>
               <dd className="font-medium">{client.display_name}</dd>
             </div>
             <div>
-              <dt className="text-xs text-black/50 dark:text-white/50">Slug</dt>
+              <dt className={`text-xs ${t.faint}`}>Slug</dt>
               <dd>{client.client_slug}</dd>
             </div>
             <div className="md:col-span-2">
-              <dt className="text-xs text-black/50 dark:text-white/50">Primary domain</dt>
+              <dt className={`text-xs ${t.faint}`}>Primary domain</dt>
               <dd>{client.primary_domain ?? "—"}</dd>
             </div>
           </dl>
-          <p className="mt-3 text-xs text-black/50 dark:text-white/50">
-            Created {new Date(client.created_at).toLocaleString()}
-          </p>
+          <p className={`mt-3 text-xs ${t.faint}`}>Created {new Date(client.created_at).toLocaleString()}</p>
         </section>
-        <section className="rounded-2xl border border-black/10 p-6 dark:border-white/15">
-          <h2 className="text-lg font-semibold">Locations</h2>
+        <section className={`rounded-2xl border p-6 ${t.section}`}>
+          <h2 className={`text-lg font-semibold ${t.heading}`}>Locations</h2>
           <div className="mt-4 space-y-4">
             {props.locations.map((loc) => (
-              <div key={loc.id} className="rounded-xl border border-black/10 p-4 text-sm dark:border-white/15">
-                <div className="font-medium text-black/80 dark:text-white/80">{loc.address_text}</div>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-black/60 dark:text-white/60">
+              <div key={loc.id} className={`rounded-xl border p-4 text-sm ${t.border}`}>
+                <div className={t.locTitle}>{loc.address_text}</div>
+                <div className={`mt-2 grid grid-cols-2 gap-2 text-xs ${t.muted}`}>
                   <span>
                     Lat {loc.lat ?? "—"} · Lng {loc.lng ?? "—"}
                   </span>
@@ -245,13 +263,13 @@ export function ClientDetailPanel(props: Props) {
             ))}
           </div>
         </section>
-        <section className="rounded-2xl border border-black/10 p-6 dark:border-white/15">
-          <h2 className="text-lg font-semibold">Keywords</h2>
+        <section className={`rounded-2xl border p-6 ${t.section}`}>
+          <h2 className={`text-lg font-semibold ${t.heading}`}>Keywords</h2>
           <div className="mt-3 flex flex-wrap gap-2">
             {props.keywords.map((k) => (
               <span
                 key={k.id}
-                className="inline-flex rounded-full border border-black/15 bg-black/[.04] px-3 py-1 text-xs font-medium dark:border-white/20 dark:bg-white/10"
+                className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${t.chip}`}
               >
                 {k.keyword_raw}
               </span>
@@ -264,29 +282,29 @@ export function ClientDetailPanel(props: Props) {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-2xl border border-black/10 p-6 dark:border-white/15">
-        <h2 className="text-lg font-semibold">Edit client</h2>
+      <section className={`rounded-2xl border p-6 ${t.section}`}>
+        <h2 className={`text-lg font-semibold ${t.heading}`}>Edit client</h2>
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-1">
-            <label className="text-sm font-medium">Display name</label>
+            <label className={lbl}>Display name</label>
             <input
-              className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-black"
+              className={`w-full rounded-md border px-3 py-2 text-sm ${t.input}`}
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
             />
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-medium">Client slug</label>
+            <label className={lbl}>Client slug</label>
             <input
-              className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-black"
+              className={`w-full rounded-md border px-3 py-2 text-sm ${t.input}`}
               value={clientSlug}
               onChange={(e) => setClientSlug(e.target.value)}
             />
           </div>
           <div className="space-y-1 md:col-span-2">
-            <label className="text-sm font-medium">Primary domain (optional)</label>
+            <label className={lbl}>Primary domain (optional)</label>
             <input
-              className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-black"
+              className={`w-full rounded-md border px-3 py-2 text-sm ${t.input}`}
               value={primaryDomain}
               onChange={(e) => setPrimaryDomain(e.target.value)}
               placeholder="example.com"
@@ -298,7 +316,11 @@ export function ClientDetailPanel(props: Props) {
             type="button"
             disabled={clientSaving}
             onClick={() => void saveClient()}
-            className="rounded-md bg-black px-3 py-2 text-sm font-medium text-white transition-all duration-150 disabled:opacity-50 dark:bg-white dark:text-black"
+            className={
+              dark
+                ? "rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition-all duration-150 disabled:opacity-50"
+                : "rounded-md bg-black px-3 py-2 text-sm font-medium text-white transition-all duration-150 disabled:opacity-50 dark:bg-white dark:text-black"
+            }
           >
             {clientSaving ? "Saving…" : "Save client"}
           </button>
@@ -312,31 +334,34 @@ export function ClientDetailPanel(props: Props) {
               Delete client
             </button>
           ) : null}
-          {clientStatus ? <span className="text-sm text-black/60 dark:text-white/60">{clientStatus}</span> : null}
+          {clientStatus ? <span className={`text-sm ${t.muted}`}>{clientStatus}</span> : null}
         </div>
-        <p className="mt-3 text-xs text-black/50 dark:text-white/50">Created {new Date(client.created_at).toLocaleString()}</p>
+        <p className={`mt-3 text-xs ${t.faint}`}>Created {new Date(client.created_at).toLocaleString()}</p>
       </section>
 
-      <section className="rounded-2xl border border-black/10 p-6 dark:border-white/15">
-        <h2 className="text-lg font-semibold">Locations</h2>
-        <p className="mt-1 text-sm text-black/60 dark:text-white/60">Edit address and identifiers per location. Save each row separately.</p>
+      <section className={`rounded-2xl border p-6 ${t.section}`}>
+        <h2 className={`text-lg font-semibold ${t.heading}`}>Locations</h2>
+        <p className={`mt-1 text-sm ${t.muted}`}>Edit address and identifiers per location. Save each row separately.</p>
         <div className="mt-4 space-y-6">
           {locations.map((loc) => (
             <LocationEditorBlock
               key={locationStableKey(loc)}
               loc={loc}
               disabled={clientSaving}
+              dark={dark}
               onSave={(draft) => void saveLocation(loc, draft)}
             />
           ))}
         </div>
       </section>
 
-      <section className="rounded-2xl border border-black/10 p-6 dark:border-white/15">
-        <h2 className="text-lg font-semibold">Keywords</h2>
-        <p className="mt-1 text-sm text-black/60 dark:text-white/60">Type a keyword and press Enter. Click a tag to remove. Save when done.</p>
+      <section className={`rounded-2xl border p-6 ${t.section}`}>
+        <h2 className={`text-lg font-semibold ${t.heading}`}>Keywords</h2>
+        <p className={`mt-1 text-sm ${t.muted}`}>
+          Type a keyword and press Enter. Click a tag to remove. Save when done.
+        </p>
         <input
-          className="mt-3 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-black"
+          className={`mt-3 w-full rounded-md border px-3 py-2 text-sm ${t.input}`}
           value={keywordInput}
           onChange={(e) => setKeywordInput(e.target.value)}
           onKeyDown={onKeywordKeyDown}
@@ -348,11 +373,15 @@ export function ClientDetailPanel(props: Props) {
               key={`${k}-${i}`}
               type="button"
               onClick={() => setKeywordTags((prev) => prev.filter((_, j) => j !== i))}
-              className="inline-flex items-center gap-1 rounded-full border border-black/15 bg-black/[.04] px-3 py-1 text-xs font-medium transition-colors hover:bg-black/10 dark:border-white/20 dark:bg-white/10"
+              className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                dark
+                  ? "border-slate-600 bg-slate-800/80 text-slate-200 hover:bg-slate-800"
+                  : "border-black/15 bg-black/[.04] hover:bg-black/10 dark:border-white/20 dark:bg-white/10"
+              }`}
               title="Remove"
             >
               <span>{k}</span>
-              <span className="text-black/40 dark:text-white/40">×</span>
+              <span className={dark ? "text-slate-500" : "text-black/40 dark:text-white/40"}>×</span>
             </button>
           ))}
         </div>
@@ -361,11 +390,15 @@ export function ClientDetailPanel(props: Props) {
             type="button"
             disabled={kwSaving}
             onClick={() => void saveKeywords()}
-            className="rounded-md bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
+            className={
+              dark
+                ? "rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                : "rounded-md bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
+            }
           >
             {kwSaving ? "Saving…" : "Save keywords"}
           </button>
-          {kwStatus ? <span className="text-sm text-black/60 dark:text-white/60">{kwStatus}</span> : null}
+          {kwStatus ? <span className={`text-sm ${t.muted}`}>{kwStatus}</span> : null}
         </div>
       </section>
     </div>
@@ -375,25 +408,32 @@ export function ClientDetailPanel(props: Props) {
 function LocationEditorBlock(props: {
   loc: LocationRow;
   disabled: boolean;
+  dark?: boolean;
   onSave: (draft: LocationRow) => void;
 }) {
   const [draft, setDraft] = useState<LocationRow>(() => props.loc);
+  const dark = Boolean(props.dark);
+  const border = dark ? "border-slate-700" : "border-black/10 dark:border-white/15";
+  const input = dark
+    ? "border-slate-600 bg-slate-900 text-slate-100 placeholder:text-slate-500"
+    : "border-black/10 bg-white dark:border-white/15 dark:bg-black";
+  const lbl = dark ? "text-sm font-medium text-slate-300" : "text-sm font-medium";
 
   return (
-    <div className="rounded-xl border border-black/10 p-4 dark:border-white/15">
+    <div className={`rounded-xl border p-4 ${border}`}>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div className="space-y-1 md:col-span-2">
-          <label className="text-sm font-medium">Address</label>
+          <label className={lbl}>Address</label>
           <input
-            className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-black"
+            className={`w-full rounded-md border px-3 py-2 text-sm ${input}`}
             value={draft.address_text}
             onChange={(e) => setDraft((d) => ({ ...d, address_text: e.target.value }))}
           />
         </div>
         <div className="space-y-1">
-          <label className="text-sm font-medium">Latitude</label>
+          <label className={lbl}>Latitude</label>
           <input
-            className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-black"
+            className={`w-full rounded-md border px-3 py-2 text-sm ${input}`}
             value={draft.lat === null ? "" : String(draft.lat)}
             onChange={(e) => {
               const v = e.target.value.trim();
@@ -403,9 +443,9 @@ function LocationEditorBlock(props: {
           />
         </div>
         <div className="space-y-1">
-          <label className="text-sm font-medium">Longitude</label>
+          <label className={lbl}>Longitude</label>
           <input
-            className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-black"
+            className={`w-full rounded-md border px-3 py-2 text-sm ${input}`}
             value={draft.lng === null ? "" : String(draft.lng)}
             onChange={(e) => {
               const v = e.target.value.trim();
@@ -415,17 +455,17 @@ function LocationEditorBlock(props: {
           />
         </div>
         <div className="space-y-1 md:col-span-2">
-          <label className="text-sm font-medium">Place ID (optional)</label>
+          <label className={lbl}>Place ID (optional)</label>
           <input
-            className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-black"
+            className={`w-full rounded-md border px-3 py-2 text-sm ${input}`}
             value={draft.place_id ?? ""}
             onChange={(e) => setDraft((d) => ({ ...d, place_id: e.target.value || null }))}
           />
         </div>
         <div className="space-y-1 md:col-span-2">
-          <label className="text-sm font-medium">GBP location id (optional)</label>
+          <label className={lbl}>GBP location id (optional)</label>
           <input
-            className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-black"
+            className={`w-full rounded-md border px-3 py-2 text-sm ${input}`}
             value={draft.gbp_location_id ?? ""}
             onChange={(e) => setDraft((d) => ({ ...d, gbp_location_id: e.target.value || null }))}
             placeholder="locations/123..."
@@ -436,7 +476,11 @@ function LocationEditorBlock(props: {
         type="button"
         disabled={props.disabled}
         onClick={() => props.onSave(draft)}
-        className="mt-2 rounded-md border border-black/10 px-3 py-2 text-sm font-medium hover:bg-black/[.04] disabled:opacity-50 dark:border-white/15 dark:hover:bg-white/10"
+        className={
+          dark
+            ? "mt-2 rounded-md border border-slate-600 px-3 py-2 text-sm font-medium text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+            : "mt-2 rounded-md border border-black/10 px-3 py-2 text-sm font-medium hover:bg-black/[.04] disabled:opacity-50 dark:border-white/15 dark:hover:bg-white/10"
+        }
       >
         Save this location
       </button>
