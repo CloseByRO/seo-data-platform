@@ -40,7 +40,14 @@ export async function POST(request: Request) {
 
   const range = body.startDate && body.endDate ? { startDate: body.startDate, endDate: body.endDate } : lastNDaysRange(3)
 
-  const results: Record<string, { ok: boolean; error?: string }> = {}
+  const results: Record<string, { ok: boolean; skipped?: boolean; error?: string }> = {}
+
+  function isSkippableConfigError(msg: string) {
+    return (
+      msg.startsWith('Missing org_integrations.gsc_site_url') ||
+      msg.startsWith('Missing locations.gbp_location_id')
+    )
+  }
 
   // GSC
   {
@@ -55,8 +62,13 @@ export async function POST(request: Request) {
       results.gsc = { ok: true }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      await finishJobRun({ jobRunId, status: 'failed', error: msg })
-      results.gsc = { ok: false, error: msg }
+      if (isSkippableConfigError(msg)) {
+        await finishJobRun({ jobRunId, status: 'skipped', error: msg })
+        results.gsc = { ok: true, skipped: true, error: msg }
+      } else {
+        await finishJobRun({ jobRunId, status: 'failed', error: msg })
+        results.gsc = { ok: false, error: msg }
+      }
     }
   }
 
@@ -73,8 +85,13 @@ export async function POST(request: Request) {
       results.gbp = { ok: true }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      await finishJobRun({ jobRunId, status: 'failed', error: msg })
-      results.gbp = { ok: false, error: msg }
+      if (isSkippableConfigError(msg)) {
+        await finishJobRun({ jobRunId, status: 'skipped', error: msg })
+        results.gbp = { ok: true, skipped: true, error: msg }
+      } else {
+        await finishJobRun({ jobRunId, status: 'failed', error: msg })
+        results.gbp = { ok: false, error: msg }
+      }
     }
   }
 

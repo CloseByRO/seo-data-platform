@@ -8,6 +8,7 @@ For v0.1 (no Supabase CLI required), run the SQL in:
 
 - `supabase/migrations/0001_init.sql`
 - `supabase/migrations/0002_rls_helpers_security_definer.sql`
+- `supabase/migrations/0003_job_runs_add_skipped_status.sql`
 
 Apply it in the Supabase Dashboard:
 

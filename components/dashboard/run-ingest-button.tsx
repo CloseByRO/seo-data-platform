@@ -21,14 +21,15 @@ export function RunIngestButton(props: { orgId: string; clientId: string; locati
       });
       const json = (await res.json()) as {
         ok?: boolean;
-        results?: Record<string, { ok: boolean; error?: string }>;
+        results?: Record<string, { ok: boolean; skipped?: boolean; error?: string }>;
         error?: string;
       };
       if (!res.ok || !json.ok) {
         setStatus(json.error ?? "Ingest failed");
         return;
       }
-      setStatus("Ingest complete. Refreshing…");
+      const skipped = Object.values(json.results ?? {}).some((r) => r.skipped);
+      setStatus(skipped ? "Ingest complete (some steps skipped). Refreshing…" : "Ingest complete. Refreshing…");
       window.location.reload();
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e));

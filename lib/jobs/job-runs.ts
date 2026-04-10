@@ -17,7 +17,11 @@ export async function startJobRun(params: { orgId: string; jobName: string; para
   return data.id as string
 }
 
-export async function finishJobRun(params: { jobRunId: string; status: 'success' | 'failed'; error?: string }) {
+export async function finishJobRun(params: {
+  jobRunId: string
+  status: 'success' | 'failed' | 'skipped'
+  error?: string
+}) {
   const admin = createAdminClient()
   const { error } = await admin
     .from('job_runs')
