@@ -65,7 +65,7 @@ export function LoginForm() {
 
       <button
         type="submit"
-        className="w-full rounded-md bg-black px-3 py-2 text-sm font-medium text-white hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90"
+        className="w-full rounded-md bg-black px-3 py-2 text-sm font-medium text-white transition-all duration-150 ease-out hover:bg-black/90 hover:shadow-sm hover:-translate-y-px active:translate-y-0 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30 dark:bg-white dark:text-black dark:hover:bg-white/90 dark:focus-visible:ring-white/30"
       >
         {mode === "signin" ? "Sign in" : "Create account"}
       </button>
@@ -73,7 +73,7 @@ export function LoginForm() {
       <button
         type="button"
         onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-        className="w-full rounded-md border border-black/10 px-3 py-2 text-sm hover:bg-black/[.04] dark:border-white/15 dark:hover:bg-white/10"
+        className="w-full rounded-md border border-black/10 px-3 py-2 text-sm transition-all duration-150 ease-out hover:bg-black/[.04] hover:shadow-sm hover:-translate-y-px active:translate-y-0 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20 dark:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-white/20"
       >
         {mode === "signin" ? "Need an account? Sign up" : "Have an account? Sign in"}
       </button>

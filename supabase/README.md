@@ -7,6 +7,7 @@ This project uses Supabase Postgres with a **dedupe-first** schema and **tenant 
 For v0.1 (no Supabase CLI required), run the SQL in:
 
 - `supabase/migrations/0001_init.sql`
+- `supabase/migrations/0002_rls_helpers_security_definer.sql`
 
 Apply it in the Supabase Dashboard:
 

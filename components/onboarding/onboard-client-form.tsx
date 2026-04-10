@@ -155,7 +155,7 @@ export function OnboardClientForm({ orgId }: Props) {
 
       {status ? <p className="text-sm text-red-600 dark:text-red-400">{status}</p> : null}
 
-      <button className="rounded-md bg-black px-3 py-2 text-sm font-medium text-white dark:bg-white dark:text-black">
+      <button className="rounded-md bg-black px-3 py-2 text-sm font-medium text-white transition-all duration-150 ease-out hover:shadow-sm hover:-translate-y-px active:translate-y-0 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30 dark:bg-white dark:text-black dark:focus-visible:ring-white/30">
         Create client + location
       </button>
     </form>
