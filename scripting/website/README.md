@@ -14,6 +14,10 @@ WEBSITE_TEMPLATE_SOURCE=/absolute/path/to/next-app npm run template:zip
 
 `WEBSITE_TEMPLATE_SOURCE` must point at the canonical Next.js app tree (e.g. your `website-dev` checkout). [`build-template-zip.mjs`](build-template-zip.mjs) copies that app **and** embeds [`closeby/`](../closeby) as `website-dev/closeby` so the bundle is self-contained (Vercel only uploads `website-dev`; monorepo paths outside that folder are not deployed).
 
+### Staying in sync with **closeby-demo-project**
+
+Demo app changes (layout, booking, webhooks, `lib/integrations`, etc.) usually live in **`WEBSITE_TEMPLATE_SOURCE`**, not under `closeby/`. **Exception:** files listed in [`closeby/PARITY.md`](closeby/PARITY.md) (e.g. `closeby/providers/client-config-provider.tsx`) must be updated **here** whenever the matching path in the demo repo changes, then re-run `template:zip`.
+
 Then run (workspace is **removed** after a successful run unless you pass `--keep-workspace`):
 
 ```bash

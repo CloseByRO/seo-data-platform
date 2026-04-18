@@ -4,6 +4,7 @@
  * Not used by onboard-client or production — set WEBSITE_TEMPLATE_SOURCE to your checkout when refreshing the zip.
  * Embeds `scripting/website/closeby` into `website-dev/closeby` and patches tsconfig/tailwind so the
  * template is self-contained (Vercel only deploys `website-dev`; monorepo `../../../closeby` is not uploaded).
+ * Keep `closeby/` in parity with **closeby-demo-project** per `closeby/PARITY.md` when demo components change.
  *
  * Usage: from repo root: WEBSITE_TEMPLATE_SOURCE=/path/to/app node scripting/website/build-template-zip.mjs
  */

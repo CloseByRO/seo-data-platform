@@ -4,6 +4,8 @@
  * - Stable section roots use ids `cb-section-*` (e.g. `cb-section-hero`).
  * - Active layout variant is exposed via `data-cb-variant` (`a`–`f`) for automation and manifests.
  * - Presentation classes (`hero-a`, `about-b`, …) mirror the static mock; anchors stay on stable ids.
+ *
+ * When the canonical **closeby-demo-project** app changes, keep this tree in sync — see `PARITY.md`.
  */
 
 import type { ComponentType } from 'react'

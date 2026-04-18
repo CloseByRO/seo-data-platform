@@ -13,7 +13,8 @@
     "generate:toon": "tsx scripting/website/generation/run-with-toon.ts",
     "generate:toon:test-cal": "tsx scripting/website/generation/run-with-toon.ts --dry-run --verbose --client-id=1f2865c5-6bec-41fc-9980-a229e5aba473 scripting/website/templates/toon.example.json",
     "generate:toon:compare5": "node scripting/website/generation/run-five-api-compare.mjs",
-    "onboard:client": "node scripting/onboard-client.mjs"
+    "onboard:client": "node scripting/onboard-client.mjs",
+    "db:apply-migrations": "node ./supabase/apply-migrations.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
@@ -30,6 +31,7 @@
     "tsx": "^4.21.0"
   },
   "devDependencies": {
+    "@types/pg": "^8.11.10",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "18.3.28",
@@ -37,6 +39,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
     "tailwindcss": "^4",
+    "pg": "^8.13.1",
     "typescript": "^5"
   }
 }
