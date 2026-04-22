@@ -4,10 +4,23 @@ import { canAccessCloseByAdminApp } from '@/lib/rbac/server'
 import { z } from 'zod'
 import { zodErrorMessage } from '@/lib/validation/parse'
 
+const templateParameterSchema = z.object({
+  type: z.literal('text'),
+  text: z.string().trim().min(1).max(1024),
+})
+
+const templateComponentSchema = z.object({
+  type: z.enum(['header', 'body', 'button']),
+  sub_type: z.enum(['quick_reply', 'url']).optional(),
+  index: z.string().regex(/^\d+$/).optional(),
+  parameters: z.array(templateParameterSchema).min(1).max(20),
+})
+
 const bodySchema = z.object({
   to: z.string().trim().optional(),
   templateName: z.string().trim().min(1).max(200).default('hello_world'),
   languageCode: z.string().trim().min(2).max(20).default('en_US'),
+  components: z.array(templateComponentSchema).max(10).optional(),
 })
 
 function normalizeE164ToDigits(raw: string) {
@@ -64,6 +77,7 @@ export async function POST(request: Request) {
       template: {
         name: parsed.data.templateName,
         language: { code: parsed.data.languageCode },
+        ...(parsed.data.components ? { components: parsed.data.components } : {}),
       },
     }),
   })
