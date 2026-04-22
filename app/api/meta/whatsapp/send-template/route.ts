@@ -4,10 +4,22 @@ import { canAccessCloseByAdminApp } from '@/lib/rbac/server'
 import { z } from 'zod'
 import { zodErrorMessage } from '@/lib/validation/parse'
 
-const templateParameterSchema = z.object({
+const templateTextParameterSchema = z.object({
   type: z.literal('text'),
   text: z.string().trim().min(1).max(1024),
 })
+
+const templateLocationParameterSchema = z.object({
+  type: z.literal('location'),
+  location: z.object({
+    latitude: z.number().finite(),
+    longitude: z.number().finite(),
+    name: z.string().trim().min(1).max(200).optional(),
+    address: z.string().trim().min(1).max(500).optional(),
+  }),
+})
+
+const templateParameterSchema = z.union([templateTextParameterSchema, templateLocationParameterSchema])
 
 const templateComponentSchema = z.object({
   type: z.enum(['header', 'body', 'button']),
