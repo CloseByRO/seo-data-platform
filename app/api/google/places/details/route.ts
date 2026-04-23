@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     place_id: body.placeId,
     key: apiKey,
     language: body.language ?? 'ro',
-    fields: 'formatted_address,geometry,address_component',
+    fields: 'formatted_address,geometry,address_components',
   })
 
   const res = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?${params.toString()}`)
@@ -74,9 +74,18 @@ export async function POST(request: Request) {
   const locality =
     findComponent(comps, 'locality')?.long_name ??
     findComponent(comps, 'postal_town')?.long_name ??
-    findComponent(comps, 'administrative_area_level_2')?.long_name ??
     null
   const region = findComponent(comps, 'administrative_area_level_1')?.long_name ?? null
+  const admin2 = findComponent(comps, 'administrative_area_level_2')?.long_name ?? null
+  const sector =
+    region && region.toLowerCase().includes('bucure') && admin2 && /sector\s*\d/i.test(admin2)
+      ? admin2.trim()
+      : null
+  const neighborhood =
+    findComponent(comps, 'neighborhood')?.long_name ??
+    findComponent(comps, 'sublocality')?.long_name ??
+    findComponent(comps, 'sublocality_level_1')?.long_name ??
+    null
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return NextResponse.json({ error: 'Missing geometry from Places details' }, { status: 502 })
@@ -89,5 +98,7 @@ export async function POST(request: Request) {
     lng,
     locality,
     region,
+    sector,
+    neighborhood,
   })
 }

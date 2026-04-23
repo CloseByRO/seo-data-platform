@@ -47,3 +47,6 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# onboarding intake scenarios (fixtures)
+tests/fixtures/onboarding-intake-scenarios/*

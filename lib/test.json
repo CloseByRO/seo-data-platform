@@ -1,0 +1,206 @@
+{
+    "orgId": "085ea51f-77e6-42a3-aa26-8ecb76b800c6",
+    "debugOnly": true,
+    "client": {
+      "displayName": "Dr Ioana Alexandrescu",
+      "legalType": "CIP",
+      "email": "dr-ioana-alexandrescu@gmail.com",
+      "phone": "0765265800"
+    },
+    "location": {
+      "addressText": "Șoseaua Olteniței, București, România",
+      "placeId": "Eh_ImG9zZWF1YSBPbHRlbmnIm2VpLCBCdWN1cmXImXRpIi4qLAoUChIJ55Q8wcb9sUARARaOmljyuFYSFAoSCU-tPL86-bFAESimnHzjMgas",
+      "lat": 44.3932226,
+      "lng": 26.1227391,
+      "county": "București",
+      "sector": "Sector 4",
+      "neighborhood": "Olteniței",
+      "countyRaw": "București",
+      "locality": "București"
+    },
+    "website": {
+      "wantsWebsite": true,
+      "languageMode": "ro",
+      "hasOldWebsite": false,
+      "reuseOldWebsiteContent": false,
+      "wantsDomainMigration": false,
+      "dnsAccessAvailable": false
+    },
+    "availability": {
+      "openingHours": [
+        {
+          "dayOfWeek": [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday"
+          ],
+          "opens": "09:00",
+          "closes": "18:00"
+        }
+      ]
+    },
+    "media": {
+      "heroImageName": "bladerunner.optimized.jpg",
+      "galleryImageNames": [
+        "bladerunner.optimized.jpg",
+        "cyberpunk 2077.optimized.jpg",
+        "vaporwave.optimized.jpg"
+      ]
+    },
+    "services": [
+      {
+        "name": "Terapie individuală",
+        "slug": "terapie-individuala",
+        "durationMinutes": 50,
+        "priceRon": 250
+      },
+      {
+        "name": "Terapie de cuplu",
+        "slug": "terapie-de-cuplu",
+        "durationMinutes": 80,
+        "priceRon": 200
+      },
+      {
+        "name": "Evaluare psihologică",
+        "slug": "evaluare-psihologica",
+        "durationMinutes": 90,
+        "priceRon": 150
+      },
+      {
+        "name": "Ședință online",
+        "slug": "sedinta-online",
+        "durationMinutes": 50,
+        "priceRon": 250
+      }
+    ],
+    "specialties": [
+      "Anxietate",
+      "Depresie",
+      "Atacuri de panică"
+    ],
+    "automation": {
+      "useWhatsapp": false,
+      "useCalcom": true,
+      "calUsername": "dr-ioana-alexandrescu-2441221",
+      "calApiKey": "••••••••••••••••••oy99",
+      "timezone": "Europe/Bucharest"
+    },
+    "calcom": {
+      "appointmentUrl": "https://cal.com/dr-ioana-alexandrescu-2441221",
+      "serviceEventSlugs": [
+        {
+          "serviceName": "Terapie individuală",
+          "eventSlug": "terapie-individuala"
+        },
+        {
+          "serviceName": "Terapie de cuplu",
+          "eventSlug": "terapie-de-cuplu"
+        },
+        {
+          "serviceName": "Evaluare psihologică",
+          "eventSlug": "evaluare-psihologica"
+        },
+        {
+          "serviceName": "Ședință online",
+          "eventSlug": "sedinta-online"
+        }
+      ],
+      "meetingModeByService": [
+        {
+          "serviceName": "Terapie individuală",
+          "mode": "both"
+        },
+        {
+          "serviceName": "Terapie de cuplu",
+          "mode": "both"
+        },
+        {
+          "serviceName": "Evaluare psihologică",
+          "mode": "both"
+        },
+        {
+          "serviceName": "Ședință online",
+          "mode": "both"
+        }
+      ]
+    },
+    "gbp": {
+      "hasGoogleAccount": "unknown",
+      "accessMethod": "we_request",
+      "clientGoogleAccountEmail": "dr-ioana-alexandrescu@gmail.com",
+      "status": "pending",
+      "profileExists": true,
+      "profileClaimed": true,
+      "placeId": "Eh_ImG9zZWF1YSBPbHRlbmnIm2VpLCBCdWN1cmXImXRpIi4qLAoUChIJ55Q8wcb9sUARARaOmljyuFYSFAoSCU-tPL86-bFAESimnHzjMgas",
+      "operatorAccessEmail": "dr-ioana-alexandrescu@gmail.com",
+      "verificationExpected": "postcard",
+      "primaryCategory": "Psiholog",
+      "additionalCategories": [
+        "Consilier psihologic"
+      ],
+      "description": "Cabinet.",
+      "appointmentUrl": "https://cal.com/dr-ioana-alexandrescu-2441221",
+      "attributes": [
+        "Programări online",
+        "Consiliere psihologică"
+      ]
+    },
+    "websiteContent": {
+      "paymentMethods": [
+        "cash",
+        "bank_transfer"
+      ],
+      "cancellationPolicy": "Anulările/reprogramările se fac cu minim 24h înainte. Pentru ședințele neanunțate, ne rezervăm dreptul să percepem contravaloarea.",
+      "faqs": [
+        {
+          "question": "Cât durează o ședință?",
+          "answer": "O ședință standard durează 50 minute (poate varia în funcție de serviciu)."
+        },
+        {
+          "question": "Cum se face programarea?",
+          "answer": "Programarea se poate face online (Cal.com) sau telefonic. Confirmarea se trimite automat."
+        },
+        {
+          "question": "Care este politica de anulare?",
+          "answer": "Reprogramările/anulările se fac cu minim 24h înainte."
+        }
+      ],
+      "nearbyTransport": []
+    },
+    "keywords": {
+      "seedKeywords": [
+        "psiholog București",
+        "psihoterapeut București",
+        "cabinet psihologie București",
+        "terapie București",
+        "terapie anxietate București",
+        "terapie depresie București",
+        "terapie cuplu București",
+        "psiholog copii București",
+        "psiholog programari București",
+        "psiholog pret București",
+        "Psiholog Olteniței",
+        "Psihoterapeut Olteniței",
+        "Anxietate Olteniței",
+        "Anxietate București Olteniței",
+        "Psiholog Sector 4",
+        "Psihoterapeut Sector 4",
+        "Anxietate Sector 4",
+        "Anxietate București",
+        "Anxietate pret",
+        "Depresie Olteniței",
+        "Depresie București Olteniței",
+        "Depresie Sector 4",
+        "Depresie București",
+        "Depresie pret",
+        "Atacuri de panică Olteniței",
+        "Atacuri de panică București Olteniței",
+        "Atacuri de panică Sector 4",
+        "Atacuri de panică București",
+        "Atacuri de panică pret"
+      ],
+      "approvedByOperator": false
+    }
+  }

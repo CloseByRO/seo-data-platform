@@ -7,7 +7,13 @@ const phoneRaw = z
   .min(1, 'Telefonul este obligatoriu')
   .max(50)
   .refine((v) => /^[0-9+\s()\-]+$/.test(v), 'Telefon invalid')
-  .refine((v) => v.replace(/[^\d]/g, '').length >= 9, 'Telefon invalid')
+  .refine((v) => {
+    const digits = v.replace(/[^\d]/g, '')
+    // RO mobile/landline: 0XXXXXXXXX (10 digits) or 40XXXXXXXXX (11 digits)
+    if (digits.length === 10 && digits.startsWith('0')) return true
+    if (digits.length === 11 && digits.startsWith('40')) return true
+    return false
+  }, 'Telefon invalid (format RO)')
 
 const domain = z
   .string()
@@ -36,8 +42,15 @@ const urlOptional = z
 const priceRon = z
   .number({ message: 'Preț invalid' })
   .int('Preț invalid')
-  .min(0, 'Preț invalid')
+  .min(1, 'Preț invalid')
   .max(50_000, 'Preț prea mare')
+
+const serviceSlug = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  .refine((v) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v), 'Slug invalid')
 
 export const onboardingIntakeSchema = z
   .object({
@@ -53,12 +66,14 @@ export const onboardingIntakeSchema = z
 
     location: z.object({
       addressText: z.string().trim().min(5, 'Adresa este obligatorie').max(2000),
-      placeId: z.string().trim().min(1, 'Selectează o sugestie Google Places').max(300),
+      placeId: z.string().trim().min(1, 'Selectează o sugestie Google Places').max(1000),
       lat: z.number().finite(),
       lng: z.number().finite(),
       county: z.enum(ROMANIAN_COUNTIES as unknown as [string, ...string[]], {
         message: 'Județ invalid (selectează o adresă din Google Places)',
       }),
+      sector: z.string().trim().max(50).optional(),
+      neighborhood: z.string().trim().max(120).optional(),
       countyRaw: z.string().trim().max(200).optional(),
       locality: z.string().trim().max(200).optional(),
     }),
@@ -86,6 +101,7 @@ export const onboardingIntakeSchema = z
       otherLanguagesNotes: z.string().trim().max(500).optional(),
       hasOldWebsite: z.boolean(),
       oldWebsiteUrl: urlOptional,
+      reuseOldWebsiteContent: z.boolean().default(false),
       domain: domain.optional(),
       wantsDomainMigration: z.boolean(),
       dnsAccessAvailable: z.boolean().optional(),
@@ -95,8 +111,9 @@ export const onboardingIntakeSchema = z
       .array(
         z.object({
           name: z.string().trim().min(2).max(200),
-          durationMinutes: z.number().int().min(10).max(240).optional(),
-          priceRon: priceRon.nullable(),
+          slug: serviceSlug,
+          durationMinutes: z.number().int().min(30, 'Durata minimă este 30 minute').max(120, 'Durata maximă este 120 minute'),
+          priceRon: priceRon,
         }),
       )
       .min(1, 'Selectează cel puțin un serviciu'),
@@ -107,7 +124,12 @@ export const onboardingIntakeSchema = z
       useWhatsapp: z.boolean().default(false),
       useCalcom: z.boolean().default(false),
       whatsappNumber: z.string().trim().max(50).optional(),
-      calUsername: z.string().trim().max(200).optional(),
+      calUsername: z
+        .string()
+        .trim()
+        .max(200)
+        .optional()
+        .refine((v) => !v || (!v.includes('@') && !/\s/.test(v)), 'Username Cal.com invalid (fără @ și fără spații)'),
       calApiKey: z.string().trim().max(500).optional(),
       timezone: z.literal('Europe/Bucharest'),
     }),
@@ -138,6 +160,7 @@ export const onboardingIntakeSchema = z
       hasGoogleAccount: z.enum(['yes', 'no', 'unknown']).default('unknown'),
       accessMethod: z.enum(['client_invite', 'we_request', 'unknown']).default('unknown'),
       clientGoogleAccountEmail: z.string().trim().email('Email Google invalid').max(500).optional(),
+      status: z.enum(['pending', 'invited', 'accepted', 'live']).default('pending'),
       profileExists: z.boolean(),
       profileClaimed: z.boolean().optional(),
       mapsUrl: urlOptional,
@@ -172,31 +195,30 @@ export const onboardingIntakeSchema = z
       privacyPolicyUrl: urlOptional,
     }),
 
-    keywords: z.object({
-      seedKeywords: z
-        .array(z.string().trim().min(2).max(200))
-        .min(5, 'Adaugă cel puțin 5 seed keywords')
-        .max(30, 'Prea multe seed keywords'),
-      approvedByOperator: z.boolean(),
-    }),
+    // Keep keywords internal-only (not shown in UI). Seeds still exist for DataForSEO pipeline.
+    keywords: z
+      .object({
+        seedKeywords: z.array(z.string().trim().min(2).max(200)).min(5).max(30),
+        approvedByOperator: z.boolean(),
+      })
+      .optional(),
   })
   .superRefine((val, ctx) => {
+    // Services: enforce unique slugs + required price/duration already validated above.
+    const slugs = new Set<string>()
     for (let i = 0; i < val.services.length; i++) {
       const s = val.services[i]
-      if (s.priceRon == null || !Number.isFinite(s.priceRon)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['services', i, 'priceRon'],
-          message: 'Setează un preț (RON)',
-        })
+      if (slugs.has(s.slug)) {
+        ctx.addIssue({ code: 'custom', path: ['services', i, 'slug'], message: 'Slug duplicat' })
       }
+      slugs.add(s.slug)
     }
 
-    if (val.gbp.hasGoogleAccount === 'yes' && !val.gbp.clientGoogleAccountEmail) {
+    if (val.gbp.accessMethod === 'we_request' && !val.gbp.clientGoogleAccountEmail) {
       ctx.addIssue({
         code: 'custom',
         path: ['gbp', 'clientGoogleAccountEmail'],
-        message: 'Completează email-ul Google al clientului',
+        message: 'Email-ul Google al clientului este obligatoriu când noi cerem acces (we_request)',
       })
     }
 
@@ -234,6 +256,13 @@ export const onboardingIntakeSchema = z
         code: 'custom',
         path: ['automation', 'calUsername'],
         message: 'Completează username-ul Cal.com',
+      })
+    }
+    if (val.automation.useCalcom && val.automation.calUsername && val.automation.calUsername.includes('@')) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['automation', 'calUsername'],
+        message: 'Cal.com username nu poate fi email (fără @)',
       })
     }
 

@@ -4,11 +4,38 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
 import { onboardingIntakeSchema, type OnboardingIntake } from '@/lib/validation/onboarding-intake'
 import { matchRomanianCounty } from '@/lib/romania/counties'
+import { CITY_NEIGHBORHOODS_MAPPING, listNeighborhoodsForCity, matchLocalSEOData, type SupportedCity } from '@/lib/romania/locations'
 import { normalizeClientSlug } from '@/lib/clients/text'
+import { expandSeedKeywordsForPsychologistGrid } from '@/lib/seo/keyword-expansion'
 
 type Props = { orgId: string }
 
 type Prediction = { description: string; placeId: string }
+
+type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends Array<infer U> ? Array<DeepPartial<U>> : T[K] extends object ? DeepPartial<T[K]> : T[K]
+}
+
+function deepMerge<T extends Record<string, unknown>>(base: T, patch: DeepPartial<T>): T {
+  const out: Record<string, unknown> = { ...base }
+  for (const [k, v] of Object.entries(patch as Record<string, unknown>)) {
+    if (v === undefined) continue
+    const existing = out[k]
+    if (
+      existing &&
+      v &&
+      typeof existing === 'object' &&
+      typeof v === 'object' &&
+      !Array.isArray(existing) &&
+      !Array.isArray(v)
+    ) {
+      out[k] = deepMerge(existing as Record<string, unknown>, v as DeepPartial<Record<string, unknown>>)
+    } else {
+      out[k] = v
+    }
+  }
+  return out as T
+}
 
 function toSlug(s: string) {
   return s
@@ -87,7 +114,64 @@ function generateSeedKeywords(opts: { locality?: string | null; county?: string 
   return base
 }
 
+function generateSEOKeywords(args: {
+  locality?: string | null
+  sector?: string | null
+  neighborhood?: string
+  metroStation?: string | null
+  specialties: string[]
+}) {
+  const out: string[] = []
+  const seen = new Set<string>()
+
+  function add(s: string) {
+    const t = s.trim()
+    if (!t) return
+    const k = t.toLowerCase().replace(/\s+/g, ' ')
+    if (seen.has(k)) return
+    seen.add(k)
+    out.push(t)
+  }
+
+  const nhood = (args.neighborhood ?? '').trim()
+  const sec = (args.sector ?? '').trim()
+  const loc = (args.locality ?? '').trim()
+  const metro = (args.metroStation ?? '').trim()
+
+  for (const sp of args.specialties) {
+    if (!sp?.trim()) continue
+    // neighborhood-first (hyper-local)
+    if (nhood) {
+      add(`Psiholog ${nhood}`)
+      add(`Psihoterapeut ${nhood}`)
+      add(`${sp} ${nhood}`)
+      if (loc) add(`${sp} ${loc} ${nhood}`)
+    }
+
+    // Bucharest metro station
+    if (metro) {
+      add(`Psiholog ${metro}`)
+      add(`${sp} ${metro}`)
+      if (loc) add(`${sp} ${loc} ${metro}`)
+    }
+
+    // Bucharest sector signals
+    if (sec) {
+      add(`Psiholog ${sec}`)
+      add(`Psihoterapeut ${sec}`)
+      add(`${sp} ${sec}`)
+    }
+
+    // fallback city-level
+    if (loc) add(`${sp} ${loc}`)
+    add(`${sp} pret`)
+  }
+
+  return out
+}
+
 export function PsychologistIntakeForm({ orgId }: Props) {
+  const [isHydrated, setIsHydrated] = useState(false)
   const [operatorAdvanced, setOperatorAdvanced] = useState(false)
   const [step, setStep] = useState(1)
   const [status, setStatus] = useState<string | null>(null)
@@ -104,7 +188,18 @@ export function PsychologistIntakeForm({ orgId }: Props) {
   const [lng, setLng] = useState<number | null>(null)
   const [countyRaw, setCountyRaw] = useState<string | null>(null)
   const [locality, setLocality] = useState<string | null>(null)
+  const [sector, setSector] = useState<string | null>(null)
+  const [neighborhood, setNeighborhood] = useState<string>('')
+  const [metroStation, setMetroStation] = useState<string | null>(null)
+  const [supportedCity, setSupportedCity] = useState<SupportedCity | null>(null)
+  const [neighborhoodOptions, setNeighborhoodOptions] = useState<string[]>([])
+  const [detectedNeighborhood, setDetectedNeighborhood] = useState<string | null>(null)
   const county = useMemo(() => matchRomanianCounty(countyRaw), [countyRaw])
+  const [intakePatch, setIntakePatch] = useState<DeepPartial<OnboardingIntake>>({})
+
+  function updateIntake(patch: DeepPartial<OnboardingIntake>) {
+    setIntakePatch((prev) => deepMerge(prev as Record<string, unknown>, patch as DeepPartial<Record<string, unknown>>) as DeepPartial<OnboardingIntake>)
+  }
 
   const [addrQuery, setAddrQuery] = useState('')
   const [addrPredictions, setAddrPredictions] = useState<Prediction[]>([])
@@ -169,9 +264,9 @@ export function PsychologistIntakeForm({ orgId }: Props) {
   const [calServiceSlugs, setCalServiceSlugs] = useState<Record<string, string>>({})
   const [calMeetingModes, setCalMeetingModes] = useState<Record<string, 'in_person' | 'online' | 'both'>>({})
 
-  const [services, setServices] = useState<Array<{ name: string; durationMinutes?: number; priceRon: number | null }>>(
-    [],
-  )
+  const [services, setServices] = useState<
+    Array<{ name: string; slug: string; durationMinutes: number; priceRon: number | null }>
+  >([])
   const [customServiceName, setCustomServiceName] = useState('')
   const [customServiceDuration, setCustomServiceDuration] = useState<string>('')
   const [customServicePrice, setCustomServicePrice] = useState<string>('')
@@ -198,8 +293,8 @@ export function PsychologistIntakeForm({ orgId }: Props) {
   >('unknown')
 
   const [seedKeywordsRaw, setSeedKeywordsRaw] = useState('')
-  const [keywordsApproved, setKeywordsApproved] = useState(false)
-  const [seedKeywordsDirty, setSeedKeywordsDirty] = useState(false)
+  // keywords are internal-only; no operator approval needed in the intake UI
+  const [seedKeywordsDirty] = useState(false)
 
   function parseLegalType(v: string): 'CIP' | 'SRL' | 'CLINICA' | '' {
     if (v === 'CIP' || v === 'SRL' || v === 'CLINICA') return v
@@ -375,6 +470,8 @@ export function PsychologistIntakeForm({ orgId }: Props) {
         lng: lng ?? Number.NaN,
         // Keep invalid until derived from Places (do not silently default).
         county: (county ?? ('UNKNOWN' as unknown as OnboardingIntake['location']['county'])) as OnboardingIntake['location']['county'],
+        sector: sector ?? undefined,
+        neighborhood: neighborhood.trim() ? neighborhood.trim() : undefined,
         countyRaw: countyRaw ?? undefined,
         locality: locality ?? undefined,
       },
@@ -384,6 +481,7 @@ export function PsychologistIntakeForm({ orgId }: Props) {
         otherLanguagesNotes: otherLanguagesNotes.trim() ? otherLanguagesNotes.trim() : undefined,
         hasOldWebsite,
         oldWebsiteUrl: oldWebsiteUrl.trim() ? oldWebsiteUrl.trim() : undefined,
+        reuseOldWebsiteContent: false,
         domain: domain.trim() ? domain.trim() : undefined,
         wantsDomainMigration,
         dnsAccessAvailable,
@@ -397,8 +495,9 @@ export function PsychologistIntakeForm({ orgId }: Props) {
         .filter((s) => s.name.trim())
         .map((s) => ({
           name: s.name.trim(),
+          slug: s.slug || toSlug(s.name),
           durationMinutes: s.durationMinutes,
-          priceRon: s.priceRon,
+          priceRon: s.priceRon ?? 0,
         })),
       specialties,
       automation: {
@@ -424,6 +523,7 @@ export function PsychologistIntakeForm({ orgId }: Props) {
         hasGoogleAccount: gbpHasGoogleAccount,
         accessMethod: gbpAccessMethod,
         clientGoogleAccountEmail: clientGoogleAccountEmail.trim() ? clientGoogleAccountEmail.trim() : undefined,
+        status: 'pending',
         profileExists,
         profileClaimed: profileExists ? profileClaimed : undefined,
         mapsUrl: gbpMapsUrl.trim() ? gbpMapsUrl.trim() : undefined,
@@ -456,9 +556,19 @@ export function PsychologistIntakeForm({ orgId }: Props) {
         parkingNotes: parkingNotes.trim() ? parkingNotes.trim() : undefined,
         privacyPolicyUrl: privacyPolicyUrl.trim() ? privacyPolicyUrl.trim() : undefined,
       },
+      // Keywords are internal-only; keep seeds for DataForSEO pipeline, but do not require operator approval in the form.
       keywords: {
-        seedKeywords: parseSeedKeywords(seedKeywordsRaw),
-        approvedByOperator: keywordsApproved,
+        seedKeywords: Array.from(
+          new Set(
+            [
+              ...parseSeedKeywords(seedKeywordsRaw),
+              ...generateSEOKeywords({ locality, sector, neighborhood, metroStation, specialties }),
+            ].map((s) =>
+              s.trim(),
+            ),
+          ),
+        ).filter(Boolean),
+        approvedByOperator: false,
       },
     }),
     [
@@ -491,7 +601,7 @@ export function PsychologistIntakeForm({ orgId }: Props) {
       gbpVerificationExpected,
       hasOldWebsite,
       heroImage,
-      keywordsApproved,
+      sector,
       languageMode,
       lat,
       legalType,
@@ -510,6 +620,8 @@ export function PsychologistIntakeForm({ orgId }: Props) {
       privacyPolicyUrl,
       profileClaimed,
       profileExists,
+      neighborhood,
+      metroStation,
       seedKeywordsRaw,
       services,
       specialties,
@@ -519,16 +631,38 @@ export function PsychologistIntakeForm({ orgId }: Props) {
     ],
   )
 
+  const intakeMerged = useMemo(() => deepMerge(intake as unknown as Record<string, unknown>, intakePatch as DeepPartial<Record<string, unknown>>) as OnboardingIntake, [
+    intake,
+    intakePatch,
+  ])
+
+  // Keyword generation stays internal-only (not displayed in UI).
+  useMemo(() => {
+    const seed = parseSeedKeywords(seedKeywordsRaw)
+    void expandSeedKeywordsForPsychologistGrid({
+      locality,
+      county: county ?? countyRaw,
+      seedKeywords: seed,
+      services: services.map((s) => s.name).filter(Boolean),
+      specialties,
+      targetCount: 40,
+    })
+  }, [county, countyRaw, locality, seedKeywordsRaw, services, specialties])
+
   const intakeMasked = useMemo(() => {
-    const clone = JSON.parse(JSON.stringify(intake)) as OnboardingIntake
+    const clone = JSON.parse(JSON.stringify(intakeMerged)) as OnboardingIntake
     if (clone.automation?.calApiKey) clone.automation.calApiKey = maskSecret(clone.automation.calApiKey)
     return clone
-  }, [intake])
+  }, [intakeMerged])
 
-  const validation = useMemo(() => onboardingIntakeSchema.safeParse(intake), [intake])
+  const validation = useMemo(() => onboardingIntakeSchema.safeParse(intakeMerged), [intakeMerged])
 
   const addrQueryRef = useRef('')
   addrQueryRef.current = addrQuery
+
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
 
   useEffect(() => {
     const q = addrQuery.trim()
@@ -597,6 +731,8 @@ export function PsychologistIntakeForm({ orgId }: Props) {
         lng?: number
         locality?: string | null
         region?: string | null
+        sector?: string | null
+        neighborhood?: string | null
         error?: string
       }
       if (!res.ok) {
@@ -613,6 +749,55 @@ export function PsychologistIntakeForm({ orgId }: Props) {
       }
       setLocality(json.locality ?? null)
       setCountyRaw(json.region ?? null)
+      const derivedSector =
+        json.sector ??
+        (json.formattedAddress && /sector\s*\d/i.test(json.formattedAddress) ? json.formattedAddress.match(/sector\s*\d/gi)?.[0] ?? null : null) ??
+        (description && /sector\s*\d/i.test(description) ? description.match(/sector\s*\d/gi)?.[0] ?? null : null)
+      setSector(derivedSector ? derivedSector.replace(/\s+/g, ' ').trim() : null)
+
+      // Neighborhood detection for major cities
+      const cityRaw =
+        (json.locality ?? '').trim() ||
+        ((json.region ?? '').toLowerCase().includes('bucure') ? 'București' : '')
+      const m =
+        cityRaw && (json.formattedAddress || description)
+          ? matchLocalSEOData({
+              localityRaw: cityRaw,
+              formattedAddress: json.formattedAddress ?? description,
+              googleNeighborhood: json.neighborhood,
+            })
+          : null
+      if (m?.city) {
+        setSupportedCity(m.city)
+        const options = listNeighborhoodsForCity(m.city, m.subdivision)
+        setNeighborhoodOptions(options)
+        setMetroStation(m.metroStation ?? null)
+
+        if (m.city === 'București') {
+          // For Bucharest, subdivision is Sector X; keep sector + optional neighborhood.
+          if (m.subdivision?.toLowerCase().includes('sector')) setSector(m.subdivision)
+          setDetectedNeighborhood(m.neighborhood ?? null)
+          if (m.neighborhood) setNeighborhood(m.neighborhood)
+        } else {
+          setDetectedNeighborhood(m.neighborhood ?? null)
+          if (m.neighborhood) setNeighborhood(m.neighborhood)
+        }
+
+        // Deep-merge patch so later nested updates never wipe `location`.
+        updateIntake({
+          location: {
+            sector: m.city === 'București' ? (m.subdivision ?? undefined) : undefined,
+            neighborhood: m.neighborhood ?? undefined,
+            locality: m.city,
+          },
+        })
+      } else {
+        setSupportedCity(null)
+        setNeighborhoodOptions([])
+        setDetectedNeighborhood(null)
+        setNeighborhood('')
+        setMetroStation(null)
+      }
     } catch (e) {
       setAddrError(e instanceof Error ? e.message : String(e))
     }
@@ -632,7 +817,10 @@ export function PsychologistIntakeForm({ orgId }: Props) {
   function addPresetService(svc: { name: string; durationMinutes: number }) {
     setServices((prev) => {
       if (prev.some((x) => x.name.toLowerCase() === svc.name.toLowerCase())) return prev
-      return [...prev, { name: svc.name, durationMinutes: svc.durationMinutes, priceRon: null }]
+      return [
+        ...prev,
+        { name: svc.name, slug: toSlug(svc.name), durationMinutes: svc.durationMinutes, priceRon: null },
+      ]
     })
   }
 
@@ -643,14 +831,15 @@ export function PsychologistIntakeForm({ orgId }: Props) {
   function addCustomService() {
     const name = customServiceName.trim()
     if (!name) return
-    const duration = customServiceDuration.trim() ? Number(customServiceDuration) : undefined
+    const duration = customServiceDuration.trim() ? Number(customServiceDuration) : NaN
     const price = customServicePrice.trim() ? Number(customServicePrice) : NaN
 
     setServices((prev) => [
       ...prev,
       {
         name,
-        durationMinutes: Number.isFinite(duration) ? duration : undefined,
+        slug: toSlug(name),
+        durationMinutes: Number.isFinite(duration) ? duration : 50,
         priceRon: Number.isFinite(price) ? price : null,
       },
     ])
@@ -668,7 +857,7 @@ export function PsychologistIntakeForm({ orgId }: Props) {
     const n = raw.trim() ? Number(raw) : NaN
     setServices((prev) =>
       prev.map((s) =>
-        s.name === name ? { ...s, durationMinutes: Number.isFinite(n) ? Math.round(n) : undefined } : s,
+        s.name === name ? { ...s, durationMinutes: Number.isFinite(n) ? Math.round(n) : s.durationMinutes } : s,
       ),
     )
   }
@@ -683,8 +872,8 @@ export function PsychologistIntakeForm({ orgId }: Props) {
     // Only show relevant errors per step to avoid noise.
     const stepFields: Record<number, string[]> = {
       1: ['client', 'location'],
-      2: ['services', 'specialties', 'website'],
-      3: ['automation', 'gbp', 'keywords'],
+            2: ['services', 'specialties', 'website'],
+            3: ['automation', 'gbp'],
       4: [],
     }
     const allow = stepFields[step] ?? []
@@ -708,6 +897,8 @@ export function PsychologistIntakeForm({ orgId }: Props) {
       setStatus('Nu am putut copia JSON.')
     }
   }
+
+  // Do not expose generated keywords in UI.
 
   const slugPreview = useMemo(() => normalizeClientSlug(displayName || ''), [displayName])
 
@@ -884,6 +1075,73 @@ export function PsychologistIntakeForm({ orgId }: Props) {
                 </div>
               </div>
 
+              {supportedCity ? (
+                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-400">
+                    <div className="text-[10px] uppercase tracking-wide text-slate-500">Sector (București)</div>
+                    <div className="mt-1 font-mono text-slate-200">{sector ?? '—'}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Cartier / Zonă</label>
+                    <input
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                      value={neighborhood}
+                      onChange={(e) => setNeighborhood(e.target.value)}
+                      placeholder="Alege din dropdown sau completează manual…"
+                    />
+                    {errors['location.neighborhood'] ? (
+                      <p className="text-xs text-rose-300">{errors['location.neighborhood']}</p>
+                    ) : (
+                      <p className="text-xs text-slate-500">
+                        Disponibil doar pentru orașe suportate (SEO hyper-local).
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
+              {supportedCity ? (
+                <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-200">Location Intelligence</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Detectăm automat zona SEO (oraș / sector / cartier). Dacă Google e vag, folosim ancorele noastre (străzi/repere/metro).
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-emerald-700/40 bg-emerald-950/20 px-3 py-1 text-xs text-emerald-200">
+                      Hyper-local: ON
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+                    <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-500">Oraș</div>
+                      <div className="mt-1 text-sm font-medium text-slate-200">{supportedCity}</div>
+                    </div>
+                    <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-500">Sector (București)</div>
+                      <div className="mt-1 text-sm font-medium text-slate-200">{supportedCity === 'București' ? sector ?? '—' : '—'}</div>
+                    </div>
+                    <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-500">Cartier</div>
+                      <div className="mt-1 text-sm font-medium text-slate-200">{(detectedNeighborhood ?? neighborhood) ?? '—'}</div>
+                      {!detectedNeighborhood && !neighborhood ? (
+                        <div className="mt-1 text-[11px] text-slate-500">
+                          Nu am putut detecta sigur cartierul din adresă (ok). Rămânem pe oraș/sector.
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {supportedCity === 'București' && metroStation ? (
+                    <div className="mt-2 text-xs text-slate-400">
+                      Metro detectat: <span className="font-medium text-slate-200">{metroStation}</span>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               {errors['location.placeId'] ? <p className="text-xs text-rose-300">{errors['location.placeId']}</p> : null}
               {errors['location.lat'] || errors['location.lng'] ? (
                 <p className="text-xs text-rose-300">Selectează o sugestie Google Places ca să avem coordonate.</p>
@@ -1003,8 +1261,8 @@ export function PsychologistIntakeForm({ orgId }: Props) {
         {step === 2 ? (
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-medium text-slate-200">Website, servicii & specialități</h3>
-              <p className="mt-1 text-sm text-slate-500">Definim oferta și opțiunile de limbă / domeniu.</p>
+              <h3 className="text-sm font-medium text-slate-200">Website, servicii, specialități & GBP</h3>
+              <p className="mt-1 text-sm text-slate-500">Definim oferta, opțiunile de limbă/domeniu și setup-ul Google Business Profile.</p>
             </div>
 
             {wantsWebsite ? (
@@ -1520,14 +1778,246 @@ export function PsychologistIntakeForm({ orgId }: Props) {
               ) : null}
               {errors['specialties'] ? <p className="text-xs text-rose-300">{errors['specialties']}</p> : null}
             </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 space-y-3">
+              <p className="text-sm font-medium text-slate-200">Google Business Profile (GBP)</p>
+              <p className="text-xs text-slate-500">
+                Scop: să obținem acces Manager/Owner ca să administrăm profilul. Verificarea poate dura (postcard/telefon/video).
+              </p>
+
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                {(
+                  [
+                    { id: 'unknown', label: 'Nu știm încă' },
+                    { id: 'yes', label: 'Are cont Google' },
+                    { id: 'no', label: 'Nu are cont Google' },
+                  ] as const
+                ).map((x) => (
+                  <button
+                    key={x.id}
+                    type="button"
+                    onClick={() => setGbpHasGoogleAccount(x.id)}
+                    className={clsx(
+                      'rounded-lg border px-3 py-2 text-sm text-left',
+                      gbpHasGoogleAccount === x.id
+                        ? 'border-emerald-700 bg-emerald-950/40 text-emerald-200'
+                        : 'border-slate-700 bg-slate-950 text-slate-200 hover:bg-slate-900',
+                    )}
+                  >
+                    {x.label}
+                  </button>
+                ))}
+              </div>
+
+              {gbpHasGoogleAccount === 'no' ? (
+                <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs text-slate-400">
+                  <div className="font-medium text-slate-200">Ajutor creare cont</div>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li>Îi ghidăm să creeze un cont Google dedicat business-ului.</li>
+                    <li>După asta, ne invită în GBP la “People and access”.</li>
+                  </ul>
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Email Google client (dacă există)
+                  </label>
+                  <input
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                    value={clientGoogleAccountEmail}
+                    onChange={(e) => setClientGoogleAccountEmail(e.target.value)}
+                    placeholder="email@gmail.com"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Email operator (acces)
+                  </label>
+                  <input
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                    value={gbpOperatorEmail}
+                    onChange={(e) => setGbpOperatorEmail(e.target.value)}
+                    placeholder="operator@…"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                {(
+                  [
+                    { id: 'unknown', label: 'Metodă acces: necunoscut' },
+                    { id: 'client_invite', label: 'Clientul ne invită (recomandat)' },
+                    { id: 'we_request', label: 'Noi trimitem request (pe email)' },
+                  ] as const
+                ).map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setGbpAccessMethod(m.id)}
+                    className={clsx(
+                      'rounded-lg border px-3 py-2 text-sm text-left',
+                      gbpAccessMethod === m.id
+                        ? 'border-emerald-700 bg-emerald-950/40 text-emerald-200'
+                        : 'border-slate-700 bg-slate-950 text-slate-200 hover:bg-slate-900',
+                    )}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                <label className="inline-flex items-center gap-2 text-sm text-slate-300">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-600"
+                    checked={profileExists}
+                    onChange={(e) => setProfileExists(e.target.checked)}
+                  />
+                  Profil existent
+                </label>
+                <label className="inline-flex items-center gap-2 text-sm text-slate-300">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-600 disabled:opacity-50"
+                    checked={profileClaimed}
+                    disabled={!profileExists}
+                    onChange={(e) => setProfileClaimed(e.target.checked)}
+                  />
+                  Claimed
+                </label>
+                <select
+                  className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                  value={gbpVerificationExpected}
+                  onChange={(e) => setGbpVerificationExpected(parseVerificationExpected(e.target.value))}
+                >
+                  <option value="unknown">Verificare: necunoscut</option>
+                  <option value="postcard">Postcard</option>
+                  <option value="phone">Telefon</option>
+                  <option value="video">Video</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Link Maps (opțional)</label>
+                <input
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                  value={gbpMapsUrl}
+                  onChange={(e) => setGbpMapsUrl(e.target.value)}
+                  placeholder="https://maps.google.com/…"
+                />
+              </div>
+
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-200">GBP (auto defaults + override)</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Categorii + descriere + appointment URL se pot deriva din specialități, locație și Cal.com.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Primary category</label>
+                    {operatorAdvanced ? (
+                      <input
+                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                        value={gbpPrimaryCategory}
+                        onChange={(e) => setGbpPrimaryCategory(e.target.value)}
+                        placeholder="Psiholog"
+                      />
+                    ) : (
+                      <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200">
+                        {gbpPrimaryCategory || 'Psiholog'}
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Additional categories</label>
+                    {operatorAdvanced ? (
+                      <input
+                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                        value={gbpAdditionalCategoriesRaw}
+                        onChange={(e) => setGbpAdditionalCategoriesRaw(e.target.value)}
+                        placeholder={derivedGbpAdditionalCategories.join(', ') || 'Psihoterapeut, Consilier psihologic'}
+                      />
+                    ) : (
+                      <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200">
+                        {(gbpAdditionalCategoriesRaw || derivedGbpAdditionalCategories.join(', ')) || '—'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Descriere (max 750)</label>
+                  <textarea
+                    className={clsx(
+                      'min-h-24 w-full rounded-lg border bg-slate-950 px-3 py-2 text-sm text-slate-100',
+                      operatorAdvanced ? 'border-slate-700' : 'border-slate-800 opacity-90',
+                    )}
+                    value={gbpDescription}
+                    onChange={(e) => operatorAdvanced && setGbpDescription(e.target.value)}
+                    placeholder={derivedGbpDescription}
+                    readOnly={!operatorAdvanced}
+                  />
+                  {derivedGbpDescription ? (
+                    <p className="text-xs text-slate-500">
+                      Default derivat: <span className="text-slate-300">{derivedGbpDescription}</span>
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Appointment URL (derived)</label>
+                    <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 break-all font-mono">
+                      {derivedCalAppointmentUrl ?? '—'}
+                    </div>
+                    <p className="text-[11px] text-slate-500">Se setează automat dacă avem Cal.com username.</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Attributes (comma)</label>
+                    {operatorAdvanced ? (
+                      <input
+                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                        value={gbpAttributesRaw}
+                        onChange={(e) => setGbpAttributesRaw(e.target.value)}
+                        placeholder={derivedGbpAttributes.join(', ') || 'Programări online, Consiliere psihologică'}
+                      />
+                    ) : (
+                      <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200">
+                        {(gbpAttributesRaw || derivedGbpAttributes.join(', ')) || '—'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {profileExists && !profileClaimed ? (
+                <div className="rounded-lg border border-amber-800/40 bg-amber-950/20 p-3 text-xs text-amber-200">
+                  Profilul există dar nu e “claimed”. Asta intră pe fluxul de revendicare/verificare (poate dura câteva zile).
+                </div>
+              ) : null}
+
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs text-slate-400">
+                <div className="font-medium text-slate-200">Note (flow)</div>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  <li>Clientul trebuie să aibă cont Google + acces de owner/manager.</li>
+                  <li>Verificarea (postcard/telefon/video) poate dura zile; nu e bypass.</li>
+                  <li>După ce avem manager access, unele acțiuni sunt blocate ~7 zile (Day 9+ gate).</li>
+                </ul>
+              </div>
+            </div>
           </div>
         ) : null}
 
         {step === 3 ? (
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-medium text-slate-200">Automatizare, GBP, Keywords</h3>
-              <p className="mt-1 text-sm text-slate-500">Setări operaționale (nu client-facing). Debug-only.</p>
+              <h3 className="text-sm font-medium text-slate-200">Automatizare (Cal.com + WhatsApp)</h3>
+              <p className="mt-1 text-sm text-slate-500">Setări operaționale. Cal.com poate fi folosit și fără website.</p>
             </div>
 
             <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 space-y-3">
@@ -1719,278 +2209,7 @@ export function PsychologistIntakeForm({ orgId }: Props) {
               ) : null}
             </div>
 
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 space-y-3">
-              <p className="text-sm font-medium text-slate-200">Google Business Profile (GBP)</p>
-              <p className="text-xs text-slate-500">
-                Scop: să obținem acces Manager/Owner ca să administrăm profilul. Verificarea poate dura (postcard/telefon/video).
-              </p>
-
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                {(
-                  [
-                    { id: 'unknown', label: 'Nu știm încă' },
-                    { id: 'yes', label: 'Are cont Google' },
-                    { id: 'no', label: 'Nu are cont Google' },
-                  ] as const
-                ).map((x) => (
-                  <button
-                    key={x.id}
-                    type="button"
-                    onClick={() => setGbpHasGoogleAccount(x.id)}
-                    className={clsx(
-                      'rounded-lg border px-3 py-2 text-sm text-left',
-                      gbpHasGoogleAccount === x.id
-                        ? 'border-emerald-700 bg-emerald-950/40 text-emerald-200'
-                        : 'border-slate-700 bg-slate-950 text-slate-200 hover:bg-slate-900',
-                    )}
-                  >
-                    {x.label}
-                  </button>
-                ))}
-              </div>
-
-              {gbpHasGoogleAccount === 'no' ? (
-                <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs text-slate-400">
-                  <div className="font-medium text-slate-200">Ajutor creare cont</div>
-                  <ul className="mt-2 list-disc space-y-1 pl-5">
-                    <li>Îi ghidăm să creeze un cont Google dedicat business-ului.</li>
-                    <li>După asta, ne invită în GBP la “People and access”.</li>
-                  </ul>
-                </div>
-              ) : null}
-
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    Email Google client (dacă există)
-                  </label>
-                  <input
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
-                    value={clientGoogleAccountEmail}
-                    onChange={(e) => setClientGoogleAccountEmail(e.target.value)}
-                    placeholder="email@gmail.com"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    Email operator (acces)
-                  </label>
-                  <input
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
-                    value={gbpOperatorEmail}
-                    onChange={(e) => setGbpOperatorEmail(e.target.value)}
-                    placeholder="operator@…"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                {(
-                  [
-                    { id: 'unknown', label: 'Metodă acces: necunoscut' },
-                    { id: 'client_invite', label: 'Clientul ne invită (recomandat)' },
-                    { id: 'we_request', label: 'Noi trimitem request (pe email)' },
-                  ] as const
-                ).map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setGbpAccessMethod(m.id)}
-                    className={clsx(
-                      'rounded-lg border px-3 py-2 text-sm text-left',
-                      gbpAccessMethod === m.id
-                        ? 'border-emerald-700 bg-emerald-950/40 text-emerald-200'
-                        : 'border-slate-700 bg-slate-950 text-slate-200 hover:bg-slate-900',
-                    )}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                <label className="inline-flex items-center gap-2 text-sm text-slate-300">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-600"
-                    checked={profileExists}
-                    onChange={(e) => setProfileExists(e.target.checked)}
-                  />
-                  Profil existent
-                </label>
-                <label className="inline-flex items-center gap-2 text-sm text-slate-300">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-600 disabled:opacity-50"
-                    checked={profileClaimed}
-                    disabled={!profileExists}
-                    onChange={(e) => setProfileClaimed(e.target.checked)}
-                  />
-                  Claimed
-                </label>
-                <select
-                  className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
-                  value={gbpVerificationExpected}
-                  onChange={(e) => setGbpVerificationExpected(parseVerificationExpected(e.target.value))}
-                >
-                  <option value="unknown">Verificare: necunoscut</option>
-                  <option value="postcard">Postcard</option>
-                  <option value="phone">Telefon</option>
-                  <option value="video">Video</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Link Maps (opțional)</label>
-                <input
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
-                  value={gbpMapsUrl}
-                  onChange={(e) => setGbpMapsUrl(e.target.value)}
-                  placeholder="https://maps.google.com/…"
-                />
-              </div>
-
-              <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 space-y-3">
-                <div>
-                  <p className="text-sm font-medium text-slate-200">GBP (auto defaults + override)</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Categorii + descriere + appointment URL se pot deriva din specialități, locație și Cal.com.
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Primary category</label>
-                    {operatorAdvanced ? (
-                      <input
-                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
-                        value={gbpPrimaryCategory}
-                        onChange={(e) => setGbpPrimaryCategory(e.target.value)}
-                        placeholder="Psiholog"
-                      />
-                    ) : (
-                      <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200">
-                        {gbpPrimaryCategory || 'Psiholog'}
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                      Additional categories
-                    </label>
-                    {operatorAdvanced ? (
-                      <input
-                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
-                        value={gbpAdditionalCategoriesRaw}
-                        onChange={(e) => setGbpAdditionalCategoriesRaw(e.target.value)}
-                        placeholder={derivedGbpAdditionalCategories.join(', ') || 'Psihoterapeut, Consilier psihologic'}
-                      />
-                    ) : (
-                      <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200">
-                        {(gbpAdditionalCategoriesRaw || derivedGbpAdditionalCategories.join(', ')) || '—'}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Descriere (max 750)</label>
-                  <textarea
-                    className={clsx(
-                      'min-h-24 w-full rounded-lg border bg-slate-950 px-3 py-2 text-sm text-slate-100',
-                      operatorAdvanced ? 'border-slate-700' : 'border-slate-800 opacity-90',
-                    )}
-                    value={gbpDescription}
-                    onChange={(e) => operatorAdvanced && setGbpDescription(e.target.value)}
-                    placeholder={derivedGbpDescription}
-                    readOnly={!operatorAdvanced}
-                  />
-                  {derivedGbpDescription ? (
-                    <p className="text-xs text-slate-500">
-                      Default derivat: <span className="text-slate-300">{derivedGbpDescription}</span>
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Appointment URL (derived)</label>
-                    <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 break-all font-mono">
-                      {derivedCalAppointmentUrl ?? '—'}
-                    </div>
-                    <p className="text-[11px] text-slate-500">Se setează automat dacă avem Cal.com username.</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Attributes (comma)</label>
-                    {operatorAdvanced ? (
-                      <input
-                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
-                        value={gbpAttributesRaw}
-                        onChange={(e) => setGbpAttributesRaw(e.target.value)}
-                        placeholder={derivedGbpAttributes.join(', ') || 'Programări online, Consiliere psihologică'}
-                      />
-                    ) : (
-                      <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200">
-                        {(gbpAttributesRaw || derivedGbpAttributes.join(', ')) || '—'}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {profileExists && !profileClaimed ? (
-                <div className="rounded-lg border border-amber-800/40 bg-amber-950/20 p-3 text-xs text-amber-200">
-                  Profilul există dar nu e “claimed”. Asta intră pe fluxul de revendicare/verificare (poate dura câteva
-                  zile).
-                </div>
-              ) : null}
-
-              <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs text-slate-400">
-                <div className="font-medium text-slate-200">Note (flow)</div>
-                <ul className="mt-2 list-disc space-y-1 pl-5">
-                  <li>Clientul trebuie să aibă cont Google + acces de owner/manager.</li>
-                  <li>Verificarea (postcard/telefon/video) poate dura zile; nu e bypass.</li>
-                  <li>După ce avem manager access, unele acțiuni sunt blocate ~7 zile (Day 9+ gate).</li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 space-y-3">
-              <p className="text-sm font-medium text-slate-200">Seed keywords (operator)</p>
-              <p className="text-xs text-slate-500">
-                Nu afișăm keywords generate. Aici doar seed (~10) pentru DataForSEO + review ulterior.
-              </p>
-              <textarea
-                className="min-h-28 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
-                value={seedKeywordsRaw}
-                onChange={(e) => {
-                  setSeedKeywordsDirty(true)
-                  setSeedKeywordsRaw(e.target.value)
-                }}
-                placeholder="1 per linie sau separate prin virgulă…"
-              />
-              {!seedKeywordsDirty ? (
-                <p className="text-xs text-slate-500">
-                  Seed keywords au fost completate automat din locație. Dacă editezi manual, nu le mai suprascriem.
-                </p>
-              ) : null}
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs text-slate-500">
-                  Count: <span className="text-slate-200">{parseSeedKeywords(seedKeywordsRaw).length}</span>
-                </p>
-                <label className="inline-flex items-center gap-2 text-sm text-slate-300">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-600"
-                    checked={keywordsApproved}
-                    onChange={(e) => setKeywordsApproved(e.target.checked)}
-                  />
-                  Aprobat de operator
-                </label>
-              </div>
-              {errors['keywords.seedKeywords'] ? (
-                <p className="text-xs text-rose-300">{errors['keywords.seedKeywords']}</p>
-              ) : null}
-            </div>
+            {/* Keywords are internal-only; not displayed in the UI. */}
           </div>
         ) : null}
 
@@ -2001,6 +2220,36 @@ export function PsychologistIntakeForm({ orgId }: Props) {
               <p className="mt-1 text-sm text-slate-500">
                 Acesta este payload-ul final pe care îl vom conecta ulterior la Supabase + `scripting/`.
               </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                <div className="text-[11px] uppercase tracking-wide text-slate-500">Servicii</div>
+                <div className="mt-1 text-lg font-semibold text-slate-100">{services.length}</div>
+                <div className="mt-1 text-xs text-slate-500">cu preț + durată</div>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                <div className="text-[11px] uppercase tracking-wide text-slate-500">SEO zone</div>
+                <div className="mt-1 text-sm font-semibold text-slate-100">
+                  {supportedCity}
+                  {supportedCity === 'București' && sector ? ` · ${sector}` : ''}
+                  {detectedNeighborhood || neighborhood ? ` · ${detectedNeighborhood ?? neighborhood}` : ''}
+                </div>
+                {supportedCity === 'București' && metroStation ? (
+                  <div className="mt-1 text-xs text-slate-500">metro: {metroStation}</div>
+                ) : (
+                  <div className="mt-1 text-xs text-slate-500">hyper-local (mapping)</div>
+                )}
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                <div className="text-[11px] uppercase tracking-wide text-slate-500">Automation</div>
+                <div className="mt-1 text-sm font-semibold text-slate-100">
+                  {useCalcom ? 'Cal.com' : '—'}
+                  {useWhatsapp ? (useCalcom ? ' + WhatsApp' : 'WhatsApp') : ''}
+                  {!useCalcom && !useWhatsapp ? 'GBP only' : ''}
+                </div>
+                <div className="mt-1 text-xs text-slate-500">timezone: Europe/Bucharest</div>
+              </div>
             </div>
 
             {!validation.success ? (
@@ -2014,17 +2263,22 @@ export function PsychologistIntakeForm({ orgId }: Props) {
             )}
 
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => void copyJson()}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
-              >
-                Copy JSON
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void copyJson()}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+                >
+                  Copy JSON
+                </button>
+                {/* Keywords are internal-only (not shown / copyable in UI). */}
+              </div>
               <div className="text-xs text-slate-500">
                 Cal key masked: <span className="font-mono text-slate-200">{maskSecret(calApiKey)}</span>
               </div>
             </div>
+
+            {/* Keyword bundle removed from UI */}
 
             <div className="max-h-[420px] overflow-auto rounded-xl border border-slate-800 bg-slate-950 p-4">
               <pre className="text-xs text-emerald-200/90">
@@ -2038,7 +2292,7 @@ export function PsychologistIntakeForm({ orgId }: Props) {
           <button
             type="button"
             onClick={() => setStep((s) => Math.max(1, s - 1))}
-            disabled={step === 1}
+            disabled={isHydrated && step === 1}
             className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 disabled:opacity-40"
           >
             ← Înapoi

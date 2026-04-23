@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { getOperatorOrgId, canMutateOrgData } from '@/lib/rbac/server'
+import { ToolsKeywordIntelRunner } from '@/components/admin/tools-keyword-intel-runner'
+import { ToolsScriptRunsLauncher } from '@/components/admin/tools-script-runs-launcher'
 
 function Card(props: { title: string; desc: string; children?: React.ReactNode }) {
   return (
@@ -93,6 +95,20 @@ export default async function ToolsPage() {
   -H 'content-type: application/json' \\
   -d @payload.json \\
   http://localhost:3000/api/onboarding/intake/validate`}</Cmd>
+        </Card>
+
+        <Card
+          title="Keyword intelligence (test run)"
+          desc="Run the keyword-intel pipeline against mock or real intake JSON (dry-run). Shows grid/landing/content keywords. Uses Maps SERP classification when center coordinates are provided."
+        >
+          <ToolsKeywordIntelRunner operatorOrgId={operatorOrgId} />
+        </Card>
+
+        <Card
+          title="Script runs (live logs)"
+          desc="Start a predefined script run on the server and watch logs live (saved to MongoDB)."
+        >
+          <ToolsScriptRunsLauncher operatorOrgId={operatorOrgId} enableRunButtons={enableRunButtons} />
         </Card>
 
         <Card

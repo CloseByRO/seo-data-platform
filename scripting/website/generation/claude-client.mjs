@@ -5,7 +5,26 @@ import { encode } from '@toon-format/toon'
  * API does not load closeby-agent-prompt.txt — that file is for Cursor/humans only.
  * Request payload = minimal system line + TOON user message + tool schema (submit_client_content).
  */
-const API_SYSTEM_MINIMAL = `Call submit_client_content once. The user message is clinic data in TOON only. Match the tool schema exactly: layout a–f, seo metaTitle≤70 and metaDescription≤200 chars, content object with all string fields, faqs array 5–12. Romanian (ăâîșț) unless TOON says en. No fake reviews.`
+// Minimal system prompt (token-efficient). The strict shape is enforced by the tool schema + server validation.
+const API_SYSTEM_MINIMAL = [
+  'You are CloseBy Content Generator for psychology clinic websites in Romania.',
+  'Input: TOON clinic data only. Do not ask questions.',
+  'Output: call submit_client_content exactly once. No markdown.',
+  'Constraints: dedupe seo.keywords/heroChips/faq questions; no invented reviews; no medical promises; consistent tu/dumneavoastra.',
+].join('\n')
+
+// Backup prompt: only prepend to the TOON user message when the model does NOT already have the full system prompt.
+// Enable with CLOSEBY_USE_BACKUP_PROMPT=1.
+const BACKUP_PROMPT = [
+  'You are CloseBy Content Generator — structured copywriter for psychology clinic websites in Romania.',
+  'The user message is clinic data only, in TOON. Decode it as structured fields; do not ask for more input.',
+  'CRITICAL: respond ONLY via submit_client_content. Must pass validation.',
+  'Types: content is an object of strings (not markdown, not stringified JSON). faqs is array of {question,answer} (not inside content).',
+  'SEO: metaTitle<=70 chars; metaDescription<=200 chars; keywords array 4-24 unique strings (prefer seoKeywordCandidates).',
+  'Layout: keys header,hero,proof,about,services,reviews,faq,location,gallery; values a-f. Apply layoutOverride last if present.',
+  'FAQs: 5-12 items; unique questions; avoid duplicate answers.',
+  'Voice: warm, credible, empathetic. No mixed tu/dumneavoastra. YMYL: no diagnoses, no cure promises, no fake reviews.',
+].join('\n')
 
 export function getSystemPromptForApi() {
   return API_SYSTEM_MINIMAL
@@ -77,13 +96,16 @@ function tryParseJson(t) {
 
 /** User message is only the clinic TOON payload (token-efficient). */
 function buildUserMessage(toon) {
+  if (process.env.CLOSEBY_USE_BACKUP_PROMPT === '1') {
+    return `${BACKUP_PROMPT}\n\n${encode(toon)}`
+  }
   return encode(toon)
 }
 
 const TOOL = {
   name: 'submit_client_content',
   description:
-    'submit_client_content: layout (a–f per section), seo { metaTitle, metaDescription, keywords }, content (hero/about/services/faq block strings + heroChips), faqs []. No seo.title/h1, no content.faqs, no reviews. Use this tool only.',
+    'submit_client_content: layout (a-f per section), seo { metaTitle, metaDescription, keywords }, content (hero/about/services/faq block strings + heroChips), faqs []. No seo.title/h1, no content.faqs, no reviews. Use this tool only.',
   input_schema: {
     type: 'object',
     properties: {
@@ -105,7 +127,58 @@ const TOOL = {
       },
       content: {
         type: 'object',
-        additionalProperties: true,
+        additionalProperties: false,
+        properties: {
+          heroTitle: { type: 'string' },
+          heroTitleAccent: { type: 'string' },
+          heroSubtitle: { type: 'string' },
+          heroCta: { type: 'string' },
+          heroCtaSecondary: { type: 'string' },
+          heroAvailability: { type: 'string' },
+          aboutTitle: { type: 'string' },
+          aboutEyebrow: { type: 'string' },
+          aboutTitleLead: { type: 'string' },
+          aboutTitleLine2: { type: 'string' },
+          aboutPullQuote: { type: 'string' },
+          servicesTitle: { type: 'string' },
+          servicesSubtitle: { type: 'string' },
+          faqTitle: { type: 'string' },
+          faqEyebrow: { type: 'string' },
+          faqSidebarLead: { type: 'string' },
+          faqSidebarEmphasis: { type: 'string' },
+          faqSidebarSubtitle: { type: 'string' },
+          reviewsTitle: { type: 'string' },
+          galleryTitle: { type: 'string' },
+          gallerySubtitle: { type: 'string' },
+          locationSaturdayNote: { type: 'string' },
+          heroBadgeFreeSession: { type: 'string' },
+          heroChips: { type: 'array', items: { type: 'string' }, maxItems: 8 },
+        },
+        required: [
+          'heroTitle',
+          'heroTitleAccent',
+          'heroSubtitle',
+          'heroCta',
+          'heroCtaSecondary',
+          'heroAvailability',
+          'aboutTitle',
+          'aboutEyebrow',
+          'aboutTitleLead',
+          'aboutTitleLine2',
+          'aboutPullQuote',
+          'servicesTitle',
+          'servicesSubtitle',
+          'faqTitle',
+          'faqEyebrow',
+          'faqSidebarLead',
+          'faqSidebarEmphasis',
+          'faqSidebarSubtitle',
+          'reviewsTitle',
+          'galleryTitle',
+          'gallerySubtitle',
+          'locationSaturdayNote',
+          'heroBadgeFreeSession',
+        ],
       },
       faqs: {
         type: 'array',

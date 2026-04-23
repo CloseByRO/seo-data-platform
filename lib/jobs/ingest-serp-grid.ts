@@ -15,6 +15,14 @@ function metersToLng(meters: number, atLat: number) {
   return denom === 0 ? 0 : meters / denom
 }
 
+function defaultZoomForRadius(radiusM: number) {
+  if (radiusM >= 4000) return 11
+  if (radiusM >= 2500) return 12
+  if (radiusM >= 1500) return 13
+  if (radiusM >= 1000) return 14
+  return 16
+}
+
 function buildGrid(centerLat: number, centerLng: number, size: number, stepM: number) {
   const half = Math.floor(size / 2)
   const points: Array<{ point_index: number; lat: number; lng: number }> = []
@@ -81,7 +89,7 @@ export async function ingestSerpGrid(params: {
       },
       { onConflict: 'location_id,shape,size,radius_m,step_m,version' },
     )
-    .select('id,size,step_m')
+    .select('id,size,step_m,radius_m')
     .single()
 
   if (gsErr) throw gsErr
@@ -134,6 +142,7 @@ export async function ingestSerpGrid(params: {
   if (!kwList || kwList.length === 0) throw new Error('No keywords for client')
 
   const days = enumerateDates(params.startDate, params.endDate)
+  const zoom = defaultZoomForRadius(gridSpec.radius_m)
 
   for (const day of days) {
     for (const kw of kwList) {
@@ -144,9 +153,10 @@ export async function ingestSerpGrid(params: {
             {
               keyword: kw.keyword_raw,
               language_code: (kw.locale ?? 'ro-RO').split('-')[0],
-              location_coordinate: `${p.lat},${p.lng},20z`,
+              location_coordinate: `${p.lat},${p.lng},${zoom}z`,
               device: 'mobile',
               depth: 20,
+              search_places: false,
             },
           ],
         )

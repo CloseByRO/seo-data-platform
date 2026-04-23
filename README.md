@@ -70,12 +70,36 @@ This repo now includes an **internal (team-only) onboarding intake** for psychol
 | `npm run lint` | ESLint         |
 | `npm test`     | Node test runner (`tests/`) |
 
+## Local Tools debugging (script runs)
+
+The internal Tools UI can start predefined server-side script runs and stream logs live (saved in MongoDB). For local use:
+
+- **Env vars**:
+  - `MONGODB_URI` (MongoDB Atlas connection string)
+  - `MONGODB_DB` (default: `seo_data_platform`)
+  - `NEXT_PUBLIC_ENABLE_TOOLS_RUN=1`
+- **Run**:
+
+```bash
+npm run dev
+```
+
+- **UI**: open `/app/tools` → “Script runs (live logs)”
+- **CLI helper**:
+
+```bash
+./node_modules/.bin/tsx scripting/tools/dev-runner.ts --org-id=<uuid> --script-id=keyword_intel_smoke
+```
+
 ## Next step: intake → pipeline
 
 The intended next stage is to turn the final debug payload into a real onboarding pipeline:
 
 - **Supabase persistence**: store the intake payload + processing state (and create/update `clients`, `locations`, `org_integrations`).
-- **DataForSEO**: generate/expand keywords (seed → full list) and store results.
+- **DataForSEO**:
+  - **Maps SERP**: classify candidate keywords by local-pack presence (grid vs landing/content).
+  - **Metrics (optional, plan-dependent)**: Clickstream and/or Google Ads keyword metrics for volume/CPC/competition.
+  - **Labs competitor expansion (optional, plan-dependent)**: expand from ranked competitors and re-enrich.
 - **Claude API**: generate site copy (RO/RO+EN) + structured content blocks.
 - **Website provisioning**: generate config, create/update GitHub repo, deploy on Vercel, persist `clients.website_deploy_url`.
 

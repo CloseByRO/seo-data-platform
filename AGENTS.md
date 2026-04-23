@@ -15,4 +15,16 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **Server-side validation**: `POST /api/onboarding/intake/validate` (RBAC + masked secrets).
 - **Operator UX**: the form includes an **“Operator advanced”** toggle; keep default mode minimal and derive values when possible.
 - **Admin tools**: `/app/tools` is the internal operator page for running ingestion/jobs + onboarding utilities.
+
+#### Hyper-local location intelligence
+
+- **Source of truth**: `lib/romania/locations.ts` (`CITY_NEIGHBORHOODS_MAPPING`).
+- The onboarding form derives **city / sector (București) / neighborhood** from Google Places + local anchors.
+- Important: neighborhood matching must avoid substring collisions (e.g. `"Olteniței"` should not match `"Tei"`).
+
+#### Keyword intelligence
+
+- **Pipeline**: `lib/seo/keyword-intelligence.ts`
+- **Maps SERP classifier**: `lib/providers/dataforseo/serp-maps.ts` (detects local-pack presence via DataForSEO Maps SERP).
+- **Geo focus**: when intake has a known `sector`/`neighborhood`, pass `geoFocus` so keyword expansion doesn’t scatter across all București sectors/neighborhoods.
 <!-- END:nextjs-agent-rules -->

@@ -84,6 +84,11 @@ async function main() {
   loadEnvFile(path.join(repoRoot, '.env'))
 
   const opts = parseArgs(process.argv.slice(2))
+  // Dry-run should be safe + fast: generate merged JSON and run minimal template steps.
+  // (Build can fail due to template/runtime differences; avoid blocking operators during dry runs.)
+  if (opts.dryRun) {
+    opts.skipDeploy = true
+  }
   const runId = opts.runId || randomUUID()
   const mergedOut = onboardingMergedPath(runId)
   const toonPath = opts.toon
@@ -154,6 +159,7 @@ async function main() {
   const pipeArgs = [
     pipe,
     `--run-id=${runId}`,
+    ...(opts.dryRun ? ['--skip-build'] : []),
     ...(opts.skipDeploy ? ['--skip-deploy'] : []),
     ...(opts.prod ? ['--prod'] : []),
     ...(opts.keepWorkspace ? ['--skip-cleanup'] : []),
