@@ -208,6 +208,14 @@ export function PsychologistIntakeForm({ orgId }: Props) {
   const [addrError, setAddrError] = useState<string | null>(null)
 
   const [languageMode, setLanguageMode] = useState<'ro' | 'ro_en'>('ro')
+  const [websiteTone, setWebsiteTone] = useState<
+    | 'warm_clinical'
+    | 'warm_conversational'
+    | 'structured_direct'
+    | 'gentle_reflective'
+    | 'energetic_supportive'
+    | 'minimal_precise'
+  >('warm_clinical')
   const [otherLanguagesNotes, setOtherLanguagesNotes] = useState('')
   const [hasOldWebsite, setHasOldWebsite] = useState(false)
   const [oldWebsiteUrl, setOldWebsiteUrl] = useState('')
@@ -478,6 +486,7 @@ export function PsychologistIntakeForm({ orgId }: Props) {
       website: {
         wantsWebsite,
         languageMode,
+        tone: websiteTone,
         otherLanguagesNotes: otherLanguagesNotes.trim() ? otherLanguagesNotes.trim() : undefined,
         hasOldWebsite,
         oldWebsiteUrl: oldWebsiteUrl.trim() ? oldWebsiteUrl.trim() : undefined,
@@ -603,6 +612,7 @@ export function PsychologistIntakeForm({ orgId }: Props) {
       heroImage,
       sector,
       languageMode,
+      websiteTone,
       lat,
       legalType,
       lng,
@@ -1278,6 +1288,28 @@ export function PsychologistIntakeForm({ orgId }: Props) {
                       <option value="ro">Română</option>
                       <option value="ro_en">Română + Engleză</option>
                     </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-slate-200">Ton site (copy)</label>
+                    <select
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                      value={websiteTone}
+                      onChange={(e) =>
+                        setWebsiteTone(
+                          (e.target.value as typeof websiteTone) || 'warm_clinical',
+                        )
+                      }
+                    >
+                      <option value="warm_clinical">Warm clinical (default)</option>
+                      <option value="warm_conversational">Warm conversational</option>
+                      <option value="structured_direct">Structured direct</option>
+                      <option value="gentle_reflective">Gentle reflective</option>
+                      <option value="energetic_supportive">Energetic supportive</option>
+                      <option value="minimal_precise">Minimal precise</option>
+                    </select>
+                    <p className="text-xs text-slate-500">
+                      Afectează stilul și ritmul textelor generate (nu schimbă conținutul factual).
+                    </p>
                   </div>
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-slate-200">Alte limbi (manual, cost extra)</label>

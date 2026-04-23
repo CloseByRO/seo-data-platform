@@ -91,17 +91,31 @@ npm run dev
 ./node_modules/.bin/tsx scripting/tools/dev-runner.ts --org-id=<uuid> --script-id=keyword_intel_smoke
 ```
 
-## Next step: intake → pipeline
+## Onboarding pipeline (intake → artifacts)
 
-The intended next stage is to turn the final debug payload into a real onboarding pipeline:
+We now persist onboarding intakes and generate artifacts in a retryable pipeline (excluding Cal/GBP provisioning actions for now).
 
-- **Supabase persistence**: store the intake payload + processing state (and create/update `clients`, `locations`, `org_integrations`).
-- **DataForSEO**:
-  - **Maps SERP**: classify candidate keywords by local-pack presence (grid vs landing/content).
-  - **Metrics (optional, plan-dependent)**: Clickstream and/or Google Ads keyword metrics for volume/CPC/competition.
-  - **Labs competitor expansion (optional, plan-dependent)**: expand from ranked competitors and re-enrich.
-- **Claude API**: generate site copy (RO/RO+EN) + structured content blocks.
-- **Website provisioning**: generate config, create/update GitHub repo, deploy on Vercel, persist `clients.website_deploy_url`.
+- **Submit intake**: `POST /api/onboarding/intake/submit` (validates, stores, triggers best-effort processing)
+- **Job runner / cron**: `POST /api/onboarding/jobs/run` with header `x-cron-secret: $CRON_SECRET`
+- **Artifacts**: stored on `onboarding_intakes.artifacts` (`keywordIntel`, `toon`, optional `websiteLlmPayload`, optional `websiteConfig`)
+
+### Local debugging (pipeline)
+
+Run a single intake through the pipeline locally (prints JSON result):
+
+```bash
+./node_modules/.bin/tsx scripting/onboarding/run-intake-pipeline.ts \
+  --org-id=<uuid> \
+  --intake-id=<uuid>
+```
+
+Or create a new intake from pasted JSON and run it:
+
+```bash
+./node_modules/.bin/tsx scripting/onboarding/run-intake-pipeline.ts \
+  --org-id=<uuid> \
+  --intake-json='{"orgId":"...","debugOnly":true,...}'
+```
 
 ## Development status (Phase 1)
 

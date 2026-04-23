@@ -1,0 +1,97 @@
+{
+  "id": "seed_onboarding",
+  "slug": "seed",
+  "name": "Psiholog",
+  "shortName": "Psiholog",
+  "credentials": "",
+  "credentialsBullets": [],
+  "bio": "",
+  "bioShort": "",
+  "approach": "",
+  "approaches": [],
+  "yearsExperience": 0,
+  "patientsHelped": 0,
+  "address": {
+    "street": "",
+    "sector": "",
+    "city": "",
+    "postalCode": "",
+    "lat": 0,
+    "lng": 0,
+    "mapsEmbedUrl": "",
+    "nearbyTransport": [],
+    "parking": ""
+  },
+  "phone": "",
+  "phoneDisplay": "",
+  "email": "",
+  "website": "",
+  "openingHours": [],
+  "openingHoursDisplay": "",
+  "integrations": {
+    "calComUsername": "__MOCK_CAL_USER__",
+    "calComCanonicalEventSlugs": {
+      "initial": "consultatie-initiala",
+      "session": "sedinta-individuala",
+      "couple": "terapie-cuplu"
+    },
+    "calComEventSlugs": {
+      "initial": "15min",
+      "session": "30min",
+      "couple": "30min"
+    },
+    "whatsappNumber": "",
+    "whatsappMessage": "Bună ziua, doresc să fac o programare.",
+    "reviewLink": ""
+  },
+  "seo": {
+    "metaTitle": "Psiholog",
+    "metaDescription": "Psihoterapie în România.",
+    "keywords": ["psiholog", "psihoterapie", "cabinet psihologie", "terapie"]
+  },
+  "content": {
+    "heroTitle": "Un pas mic",
+    "heroTitleAccent": "contează",
+    "heroSubtitle": "Un spațiu sigur pentru claritate și schimbare, pas cu pas.",
+    "heroCta": "Programează",
+    "heroCtaSecondary": "Află mai multe",
+    "heroAvailability": "România",
+    "heroBadgeFreeSession": "",
+    "heroChips": [],
+    "aboutTitle": "Despre mine",
+    "aboutEyebrow": "Despre",
+    "aboutTitleLead": "Despre",
+    "aboutTitleLine2": "mine",
+    "aboutPullQuote": "",
+    "servicesTitle": "Servicii",
+    "servicesSubtitle": "",
+    "faqTitle": "Întrebări frecvente",
+    "faqEyebrow": "FAQ",
+    "faqSidebarLead": "Ai o altă",
+    "faqSidebarEmphasis": "întrebare?",
+    "faqSidebarSubtitle": "",
+    "reviewsTitle": "Recenzii",
+    "galleryTitle": "Galerie foto",
+    "gallerySubtitle": "",
+    "locationSaturdayNote": ""
+  },
+  "layout": {
+    "header": "a",
+    "hero": "a",
+    "proof": "a",
+    "about": "a",
+    "services": "a",
+    "reviews": "a",
+    "faq": "a",
+    "location": "a",
+    "gallery": "a"
+  },
+  "onboarding": {
+    "optInWebsite": true,
+    "optInCal": false
+  },
+  "landingPages": {},
+  "services": [],
+  "faqs": []
+}
+

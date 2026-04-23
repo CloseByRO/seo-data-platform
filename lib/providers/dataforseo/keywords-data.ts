@@ -92,6 +92,8 @@ async function tryClickstream(args: { keywords: string[]; location_code: number;
         msg.toLowerCase().includes('not allowed') ||
         msg.toLowerCase().includes('unauthorized') ||
         msg.toLowerCase().includes('payment required') ||
+        msg.toLowerCase().includes('unusual activity') ||
+        msg.toLowerCase().includes('dataforseo: 40201') ||
         msg.toLowerCase().includes('invalid field')
       ) {
         return { ok: false as const, reason: msg }
@@ -126,6 +128,8 @@ async function googleAds(args: { keywords: string[]; location_code: number; lang
         msg.toLowerCase().includes('not allowed') ||
         msg.toLowerCase().includes('unauthorized') ||
         msg.toLowerCase().includes('payment required') ||
+        msg.toLowerCase().includes('unusual activity') ||
+        msg.toLowerCase().includes('dataforseo: 40201') ||
         msg.toLowerCase().includes('invalid field')
       if (unsupported) {
         // Graceful degradation: allow pipeline to continue with null metrics.

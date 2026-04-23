@@ -86,6 +86,19 @@ See [`.env.local.example`](../../.env.local.example) for full comments. Relevant
 - **Vercel ↔ GitHub:** In the Vercel team, connect GitHub and grant access to repos under the account/org that will own client sites (same as “Import Git Repository” in the UI).
 - **GitHub token:** Classic PAT with **`repo`**, or a fine-grained token with repository creation + contents write for the target owner.
 
+### Org deploy checklist (CloseBy)
+
+- **GitHub**:
+  - Set `GITHUB_OWNER=CloseBy`.
+  - Ensure `GITHUB_TOKEN` can create **private** repos in the CloseBy org (org policy + token scopes).
+  - If the repo name already exists, set `GITHUB_REPO_EXISTS=reuse` to skip creation and only push.
+- **Vercel**:
+  - Set `VERCEL_ORG_ID` (team id `team_...` or team slug).
+  - Connect GitHub integration for the Vercel team and grant access to repos under CloseBy.
+- **Env sync policy**:
+  - Only “client-site runtime” keys are pushed by default (Cal/Resend/Redis/QStash + `CLIENT_SLUG` + `NEXT_PUBLIC_SITE_URL`).
+  - Add any extra keys explicitly via `VERCEL_SYNC_EXTRA_KEYS`.
+
 ---
 
 ## End-to-end: template zip → onboard

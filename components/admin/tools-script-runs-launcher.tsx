@@ -8,6 +8,7 @@ type ScriptSpecLite = { id: string; label: string; dryAllowed: boolean; realAllo
 const SCRIPTS: ScriptSpecLite[] = [
   { id: 'keyword_intel_smoke', label: 'Keyword intel smoke (fixtures)', dryAllowed: true, realAllowed: false },
   { id: 'onboard_client_dry', label: 'Onboard client (dry-run)', dryAllowed: true, realAllowed: false },
+  { id: 'onboarding_pipeline_one', label: 'Onboarding pipeline (one intake)', dryAllowed: true, realAllowed: true },
 ]
 
 function clsx(...parts: Array<string | false | null | undefined>) {
@@ -19,6 +20,9 @@ export function ToolsScriptRunsLauncher(props: { operatorOrgId: string; enableRu
   const [scriptId, setScriptId] = useState<string>(SCRIPTS[0]?.id ?? '')
   const [status, setStatus] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
+  const [intakeId, setIntakeId] = useState('')
+  const [intakeJson, setIntakeJson] = useState('')
+  const [dryRunPipeline, setDryRunPipeline] = useState(false)
 
   const spec = useMemo(() => SCRIPTS.find((s) => s.id === scriptId) ?? null, [scriptId])
   const allowed = spec ? (kind === 'dry' ? spec.dryAllowed : spec.realAllowed) : false
@@ -30,10 +34,20 @@ export function ToolsScriptRunsLauncher(props: { operatorOrgId: string; enableRu
     setRunning(true)
     setStatus(null)
     try {
+      const params =
+        scriptId === 'onboarding_pipeline_one'
+          ? {
+              orgId: props.operatorOrgId,
+              ...(intakeId.trim() ? { intakeId: intakeId.trim() } : {}),
+              ...(intakeJson.trim() ? { intakeJson: intakeJson.trim() } : {}),
+              dryRun: dryRunPipeline,
+            }
+          : {}
+
       const create = await fetch('/api/tools/runs/create', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ orgId: props.operatorOrgId, kind, scriptId, params: {} }),
+        body: JSON.stringify({ orgId: props.operatorOrgId, kind, scriptId, params }),
       })
       const created = (await create.json()) as { ok?: boolean; runId?: string; error?: unknown }
       if (!create.ok || !created.runId) {
@@ -103,8 +117,8 @@ export function ToolsScriptRunsLauncher(props: { operatorOrgId: string; enableRu
             onChange={(e) => setKind(e.target.value === 'real' ? 'real' : 'dry')}
           >
             <option value="dry">dry</option>
-            <option value="real" disabled>
-              real (disabled)
+            <option value="real" disabled={!spec?.realAllowed}>
+              real
             </option>
           </select>
         </div>
@@ -124,6 +138,56 @@ export function ToolsScriptRunsLauncher(props: { operatorOrgId: string; enableRu
           </select>
         </div>
       </div>
+
+      {scriptId === 'onboarding_pipeline_one' ? (
+        <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-950 p-3">
+          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            Onboarding pipeline params
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            <div className="space-y-1">
+              <label className="text-xs text-slate-400">Intake ID (optional)</label>
+              <input
+                value={intakeId}
+                onChange={(e) => setIntakeId(e.target.value)}
+                placeholder="uuid"
+                className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+              />
+              <div className="text-[11px] text-slate-500">
+                If set, runs the pipeline for an existing `onboarding_intakes.id`.
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-slate-400">Pipeline dry-run</label>
+              <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                <input
+                  type="checkbox"
+                  checked={dryRunPipeline}
+                  onChange={(e) => setDryRunPipeline(e.target.checked)}
+                  className="h-4 w-4 accent-white"
+                />
+                Skip Claude API call (seed + keyword intel only)
+              </label>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs text-slate-400">Intake JSON (optional)</label>
+            <textarea
+              value={intakeJson}
+              onChange={(e) => setIntakeJson(e.target.value)}
+              placeholder='Paste full onboarding intake JSON here (validated server-side).'
+              rows={6}
+              className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-xs text-slate-100"
+            />
+            <div className="text-[11px] text-slate-500">
+              If provided (and Intake ID is empty), this creates a new intake row then runs the pipeline.
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {status ? <div className="text-xs text-rose-300">{status}</div> : null}
       {!allowed ? <div className="text-xs text-slate-500">This script is not allowed for the selected run kind.</div> : null}

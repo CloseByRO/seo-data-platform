@@ -64,6 +64,17 @@ export async function createGitHubPrivateRepo(opts) {
     }
   }
 
+  if (res.status === 403 && !isUserOwner) {
+    return {
+      ok: false,
+      error:
+        `GitHub ${res.status}: token cannot create repos in org "${owner}". ` +
+        'Ensure the token has permission and your user has org rights (often requires org owner/admin). ' +
+        'If you want to deploy under a personal account instead, set GITHUB_OWNER to your user login.',
+      status: res.status,
+    }
+  }
+
   return {
     ok: false,
     error: `GitHub create repo ${res.status}: ${text}`,

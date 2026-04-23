@@ -58,6 +58,8 @@ export async function fetchRankedKeywordsFromLabs(args: {
       msg.toLowerCase().includes('not allowed') ||
       msg.toLowerCase().includes('unauthorized') ||
       msg.toLowerCase().includes('payment required') ||
+      msg.toLowerCase().includes('unusual activity') ||
+      msg.toLowerCase().includes('dataforseo: 40201') ||
       // Basic plans / mismatched payload requirements often show up as “Invalid Field”.
       msg.toLowerCase().includes('invalid field')
     if (unsupported) return { ok: false as const, reason: msg }

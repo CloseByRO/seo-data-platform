@@ -1,7 +1,10 @@
 import path from 'node:path'
 import { z } from 'zod'
 
-export type ScriptId = 'keyword_intel_smoke' | 'onboard_client_dry'
+export type ScriptId =
+  | 'keyword_intel_smoke'
+  | 'onboard_client_dry'
+  | 'onboarding_pipeline_one'
 
 export type ToolsRunKind = 'dry' | 'real'
 
@@ -58,6 +61,51 @@ export const SCRIPT_SPECS: ScriptSpec[] = [
       return { cmd, args, cwd: repoRoot }
     },
     redactEnvKeys: ['ANTHROPIC_API_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'MONGODB_URI', 'DATAFORSEO_PASSWORD'],
+  },
+  {
+    id: 'onboarding_pipeline_one',
+    label: 'Onboarding pipeline (one intake)',
+    dryAllowed: true,
+    realAllowed: true,
+    timeoutMs: 25 * 60_000,
+    paramsSchema: z
+      .object({
+        orgId: z.string().uuid(),
+        intakeId: z.string().uuid().optional(),
+        intakeJson: z.string().optional(),
+        dryRun: z.boolean().default(false),
+      })
+      .refine((v) => Boolean(v.intakeId) || Boolean(v.intakeJson), {
+        message: 'Provide intakeId or intakeJson',
+      }),
+    buildCommand: ({ repoRoot, params }) => {
+      const p = z
+        .object({
+          orgId: z.string().uuid(),
+          intakeId: z.string().uuid().optional(),
+          intakeJson: z.string().optional(),
+          dryRun: z.boolean().default(false),
+        })
+        .parse(params)
+      const cli = tsxCli(repoRoot)
+      const script = path.join(repoRoot, 'scripting', 'onboarding', 'run-intake-pipeline.ts')
+      const args = [
+        cli,
+        script,
+        '--org-id',
+        p.orgId,
+        ...(p.intakeId ? ['--intake-id', p.intakeId] : []),
+        ...(p.intakeJson ? ['--intake-json', p.intakeJson] : []),
+        ...(p.dryRun ? ['--dry-run'] : []),
+      ]
+      return { cmd: 'node', args, cwd: repoRoot }
+    },
+    redactEnvKeys: [
+      'ANTHROPIC_API_KEY',
+      'SUPABASE_SERVICE_ROLE_KEY',
+      'MONGODB_URI',
+      'DATAFORSEO_PASSWORD',
+    ],
   },
 ]
 

@@ -98,6 +98,16 @@ export const onboardingIntakeSchema = z
     website: z.object({
       wantsWebsite: z.boolean(),
       languageMode: z.enum(['ro', 'ro_en']),
+      tone: z
+        .enum([
+          'warm_clinical',
+          'warm_conversational',
+          'structured_direct',
+          'gentle_reflective',
+          'energetic_supportive',
+          'minimal_precise',
+        ])
+        .default('warm_clinical'),
       otherLanguagesNotes: z.string().trim().max(500).optional(),
       hasOldWebsite: z.boolean(),
       oldWebsiteUrl: urlOptional,
@@ -129,7 +139,13 @@ export const onboardingIntakeSchema = z
         .trim()
         .max(200)
         .optional()
-        .refine((v) => !v || (!v.includes('@') && !/\s/.test(v)), 'Username Cal.com invalid (fără @ și fără spații)'),
+        .refine((v) => !v || !/\s/.test(v), 'Username Cal.com invalid (fără spații)')
+        .refine((v) => {
+          if (!v) return true
+          if (!v.includes('@')) return true
+          // Allow Cal.com "username" that is actually an email (some accounts use this).
+          return z.string().email().safeParse(v).success
+        }, 'Cal.com username/email invalid'),
       calApiKey: z.string().trim().max(500).optional(),
       timezone: z.literal('Europe/Bucharest'),
     }),
@@ -258,13 +274,7 @@ export const onboardingIntakeSchema = z
         message: 'Completează username-ul Cal.com',
       })
     }
-    if (val.automation.useCalcom && val.automation.calUsername && val.automation.calUsername.includes('@')) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['automation', 'calUsername'],
-        message: 'Cal.com username nu poate fi email (fără @)',
-      })
-    }
+    // Allow email-style Cal identifier (some Cal.com accounts use an email in URLs).
 
     if (val.website.wantsWebsite && val.websiteContent.privacyPolicyUrl) {
       // already validated by urlOptional; keep for future conditional rules

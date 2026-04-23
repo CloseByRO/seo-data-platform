@@ -434,8 +434,10 @@ async function main() {
       await saveDeployUrlIfNeeded(deployUrl)
     } else if (process.env.VERCEL_TOKEN?.trim()) {
       console.error(
-        'Configure Git-linked deploy: set GITHUB_TOKEN and GITHUB_OWNER in .env.local,\n' +
-          'or set VERCEL_USE_CLI_UPLOAD=1 (or pass --vercel-cli-upload) for legacy `vercel deploy` upload.'
+        'Configure Git-linked deploy: set GITHUB_TOKEN and GITHUB_OWNER in repo-root .env.local.\n' +
+          '- If you deploy under the CloseBy GitHub org: set GITHUB_OWNER=CloseBy and use a token that can create private repos in that org.\n' +
+          '- Ensure your Vercel team is connected to GitHub and granted access to repos under that owner (Vercel dashboard → Team Settings → Git).\n\n' +
+          'Alternative: set VERCEL_USE_CLI_UPLOAD=1 (or pass --vercel-cli-upload) for legacy `vercel deploy` upload.'
       )
       process.exit(1)
     } else {
