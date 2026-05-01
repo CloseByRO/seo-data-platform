@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getFirebaseAdminAuth } from '@/lib/firebase-admin.js'
 import { isAuthorizedInternalRequest } from '@/lib/internal-auth.js'
 import { normalizePhone } from '@/lib/phone.js'
-import { checkPhoneLock } from '@/lib/redis'
+import { phoneLockKey, redisGet } from '@/lib/redis'
 
 export async function POST(request: Request) {
   const expected = process.env.INTERNAL_LOCK_API_TOKEN?.trim()
@@ -26,13 +26,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Phone verification failed' }, { status: 401 })
     }
 
-    if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
-      return NextResponse.json({ locked: false, reason: 'no_store' })
-    }
+    const hasRedis =
+      (!!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN) ||
+      (!!process.env.UPSTASH_REDIS_REST_URL && !!process.env.UPSTASH_REDIS_REST_TOKEN)
+    if (!hasRedis) return NextResponse.json({ locked: false, reason: 'no_store' })
 
-    const lock = await checkPhoneLock(phone)
-    if (!lock.locked) return NextResponse.json({ locked: false })
-    return NextResponse.json({ locked: true, createdAt: lock.createdAt })
+    const key = phoneLockKey(phone)
+    const value = await redisGet(key)
+    return NextResponse.json({ locked: !!value })
   } catch (error) {
     return NextResponse.json(
       { locked: false, error: error instanceof Error ? error.message : String(error) },
